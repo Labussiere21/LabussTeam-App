@@ -358,6 +358,13 @@ async function loadExamens() {
         }).filter(Boolean);
         return {...ex, candidats:cands};
     }).sort((a,b)=>parseDateFR(a.date)-parseDateFR(b.date));
+    // Masquer les examens passés sans candidats (fantômes)
+    var today = new Date(); today.setHours(0,0,0,0);
+    dataEx = dataEx.filter(function(ex){
+        var d = parseDateFR(ex.date);
+        // Garder si : futur OU a des candidats
+        return d >= today || ex.candidats.length > 0;
+    });
     document.getElementById('cntEx').textContent='('+dataEx.length+')';
     renderExamens();
 }
