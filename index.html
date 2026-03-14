@@ -290,6 +290,7 @@
             <div style="padding:10px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
                 <strong>📋 Historique des résultats</strong>
                 <select id="fltResultatsMois" onchange="renderResultats()" style="padding:6px;border-radius:6px;border:1px solid #ddd"><option value="">Tous les mois</option></select>
+                <input id="searchResultats" type="text" placeholder="🔍 Rechercher un élève..." oninput="renderResultats()" style="padding:6px 10px;border-radius:6px;border:1px solid #ddd;min-width:200px">
                 <span id="cntResultats" style="color:#7f8c8d;font-size:0.9em"></span>
             </div>
             <div class="table-wrap"><table><thead><tr>
@@ -528,8 +529,18 @@ async function loadResultats() {
 }
 function renderResultats() {
     var filtre = document.getElementById('fltResultatsMois').value;
+    var search = (document.getElementById('searchResultats').value || '').trim().toLowerCase();
     var filtered = dataResultats;
-    if (filtre) filtered = dataResultats.filter(function(r){ return r.mois_examen === filtre; });
+    // Si recherche active, ignorer le filtre mois (recherche globale)
+    if (search) {
+        filtered = dataResultats.filter(function(r){
+            var nom = (r.nom || '').toLowerCase();
+            var prenom = (r.prenom || '').toLowerCase();
+            return nom.indexOf(search) === 0 || prenom.indexOf(search) === 0;
+        });
+    } else if (filtre) {
+        filtered = dataResultats.filter(function(r){ return r.mois_examen === filtre; });
+    }
     var tbody = document.getElementById('tbResultats');
     var nbR=0, nbE=0;
     var html = '';
