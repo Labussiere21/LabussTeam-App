@@ -56,6 +56,15 @@
         .badge-ok { background: #d4edda; color: #155724; }
         .badge-no { background: #f8d7da; color: #721c24; }
         .badge-warn { background: #fde8d0; color: #e67e22; }
+        .badge-prio { background: #FFD700; color: #000; }
+        tr.c-prio { background: #FFF8DC; }
+        tr.c-prio:hover { background: #FFEEB4; }
+        .cal-day { background:white; min-height:100px; padding:4px 6px; font-size:0.85em; vertical-align:top; }
+        .cal-day.today { background:#e8f4ff; }
+        .cal-day.other { background:#f5f5f5; color:#bbb; }
+        .cal-header { background:#2c3e50; color:white; padding:8px 4px; text-align:center; font-weight:600; font-size:0.85em; }
+        .cal-exam { background:#3498db; color:white; padding:2px 5px; border-radius:4px; font-size:0.75em; margin:2px 0; cursor:pointer; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .cal-exam:hover { background:#2980b9; }
         .exam-card { background: white; border-radius: 12px; padding: 18px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-left: 5px solid #3498db; }
         .exam-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
         .exam-header h3 { font-size: 1.05em; }
@@ -236,12 +245,14 @@
         </div>
     </div>
     <div class="tabs" id="tabsBar">
-        <div class="tab active" data-tab="inscrits" onclick="switchTab('inscrits')">📋 Inscrits <span id="cntIns"></span></div>
+        <div class="tab active" data-tab="inscrits" onclick="switchTab('inscrits')">📋 Liste d'attente <span id="cntIns"></span></div>
         <div class="tab" data-tab="ajournes" onclick="switchTab('ajournes')">⚠️ Ajournés <span id="cntAj"></span></div>
         <div class="tab" data-tab="examens" onclick="switchTab('examens')">📝 Examens <span id="cntEx"></span></div>
         <div class="tab tab-admin" data-tab="stats" onclick="switchTab('stats')" id="tabStats" style="display:none">📊 Statistiques</div>
         <div class="tab" data-tab="resultats" onclick="switchTab('resultats')" id="tabResultats">📋 Résultats</div>
         <div class="tab tab-admin" data-tab="places" onclick="switchTab('places')" id="tabPlaces" style="display:none">🗓️ Places</div>
+        <div class="tab" data-tab="search" onclick="switchTab('search')">🔍 Recherche</div>
+        <div class="tab" data-tab="calendrier" onclick="switchTab('calendrier');renderCalendrier()">📆 Calendrier</div>
     </div>
     <div class="content">
         <div class="tab-content active" id="tab-inscrits">
@@ -294,16 +305,39 @@
                 <span id="cntResultats" style="color:#7f8c8d;font-size:0.9em"></span>
             </div>
             <div class="table-wrap"><table><thead><tr>
-                <th>Nom</th><th>Prénom</th><th>Résultat</th><th>Mois examen</th><th>Date examen</th>
+                <th onclick="doSortRes('nom')">Nom <span class="arrow">▲▼</span></th>
+                <th onclick="doSortRes('prenom')">Prénom <span class="arrow">▲▼</span></th>
+                <th onclick="doSortRes('resultat')">Résultat <span class="arrow">▲▼</span></th>
+                <th onclick="doSortRes('mois_examen')">Mois examen <span class="arrow">▲▼</span></th>
+                <th onclick="doSortRes('date_examen')">Date examen <span class="arrow">▲▼</span></th>
             </tr></thead><tbody id="tbResultats"></tbody></table></div>
+        </div>
+        <div class="tab-content" id="tab-search">
+            <div class="filters">
+                <input type="text" id="srcGlobal" placeholder="🔍 Rechercher partout (nom ou prénom)..." oninput="renderGlobalSearch()">
+                <span class="filter-count" id="cntGlobal"></span>
+            </div>
+            <div id="globalResults">
+                <p style="text-align:center;color:#95a5a6;padding:30px">Tapez un nom ou prénom pour rechercher dans toutes les données</p>
+            </div>
+        </div>
+        <div class="tab-content" id="tab-calendrier">
+            <div style="display:flex;align-items:center;gap:15px;margin-bottom:15px;flex-wrap:wrap">
+                <button class="btn btn-sm" onclick="calNav(-1)" style="background:#34495e">◀</button>
+                <h2 id="calTitle" style="margin:0;font-size:1.15em"></h2>
+                <button class="btn btn-sm" onclick="calNav(1)" style="background:#34495e">▶</button>
+                <button class="btn btn-sm btn-blue" onclick="calGoToday()">Aujourd'hui</button>
+            </div>
+            <div id="calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;background:#ddd;border-radius:10px;overflow:hidden"></div>
         </div>
     </div>
 </div>
 <script>
 let sb = null;
 let dataIns = [], dataAj = [], dataEx = [];
-let sortIns = { col: null, asc: true }, sortAj = { col: null, asc: true };
+let sortIns = { col: null, asc: true }, sortAj = { col: null, asc: true }, sortRes = { col: null, asc: true };
 let isAdmin = false;
+let calYear, calMonth; // calendrier
 const ADMIN_PWD = "admin2026";
 const MOIS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
 
@@ -380,10 +414,11 @@ function renderInscrits() {
         const isAuto = (e.note||'').toLowerCase().includes('boîte auto');
         const isAcc = e.type==='Accompagnée';
         const isAnnul = e.presentation==='Annulation';
-        const cls = isAuto && isAcc ? 'c-auto-acc' : isAuto ? 'c-auto' : isAcc ? 'c-acc' : isAnnul ? 'c-annul' : '';
-        // verifs: 'oui' = envoyées (OK), 'non' = pas envoyées (NON)
+        const isPrio = e.prioritaire === 1;
+        const cls = isPrio ? 'c-prio' : isAuto && isAcc ? 'c-auto-acc' : isAuto ? 'c-auto' : isAcc ? 'c-acc' : isAnnul ? 'c-annul' : '';
         const verifsBadge = e.verifs === 'oui' ? '<span class="badge badge-ok">✓ OK</span>' : '<span class="badge badge-no">✗ NON</span>';
-        return '<tr class="'+cls+'"><td><strong>'+esc(e.nom)+'</strong></td><td>'+esc(e.prenom)+'</td><td>'+verifsBadge+'</td><td>'+esc(e.mois)+'</td><td>'+esc(e.date_exam)+'</td><td>'+esc(note)+'</td></tr>';
+        const prioBadge = isPrio ? ' <span class="badge badge-prio">⭐</span>' : '';
+        return '<tr class="'+cls+'"><td><strong>'+esc(e.nom)+'</strong>'+prioBadge+'</td><td>'+esc(e.prenom)+'</td><td>'+verifsBadge+'</td><td>'+esc(e.mois)+'</td><td>'+esc(e.date_exam)+'</td><td>'+esc(note)+'</td></tr>';
     }).join('');
 }
 
@@ -398,8 +433,10 @@ function renderAjournes() {
         const isAuto = (e.note||'').toLowerCase().includes('boîte auto');
         const isAcc = e.type==='Accompagnée';
         const isAnnul = e.presentation==='Annulation';
-        const cls = isAuto && isAcc ? 'c-auto-acc' : isAuto ? 'c-auto' : isAcc ? 'c-acc' : isAnnul ? 'c-annul' : '';
-        return '<tr class=\"'+cls+'\"><td><strong>'+esc(e.nom)+'</strong></td><td>'+esc(e.prenom)+'</td><td>'+esc(e.presentation)+'</td><td>'+esc(e.niveau)+'</td><td>'+esc(e.mois_echec)+'</td><td>'+esc(e.date_echec)+'</td><td>'+esc(e.mois)+'</td><td>'+esc(e.date)+'</td><td>'+esc(note)+'</td></tr>';
+        const isPrio = e.prioritaire === 1;
+        const cls = isPrio ? 'c-prio' : isAuto && isAcc ? 'c-auto-acc' : isAuto ? 'c-auto' : isAcc ? 'c-acc' : isAnnul ? 'c-annul' : '';
+        const prioBadge = isPrio ? ' <span class="badge badge-prio">⭐</span>' : '';
+        return '<tr class="'+cls+'"><td><strong>'+esc(e.nom)+'</strong>'+prioBadge+'</td><td>'+esc(e.prenom)+'</td><td>'+esc(e.presentation)+'</td><td>'+esc(e.niveau)+'</td><td>'+esc(e.mois_echec)+'</td><td>'+esc(e.date_echec)+'</td><td>'+esc(e.mois)+'</td><td>'+esc(e.date)+'</td><td>'+esc(note)+'</td></tr>';
     }).join('');
 }
 
@@ -538,7 +575,6 @@ function renderResultats() {
     var filtre = document.getElementById('fltResultatsMois').value;
     var search = (document.getElementById('searchResultats').value || '').trim().toLowerCase();
     var filtered = dataResultats;
-    // Si recherche active, ignorer le filtre mois (recherche globale)
     if (search) {
         filtered = dataResultats.filter(function(r){
             var nom = (r.nom || '').toLowerCase();
@@ -547,6 +583,15 @@ function renderResultats() {
         });
     } else if (filtre) {
         filtered = dataResultats.filter(function(r){ return r.mois_examen === filtre; });
+    }
+    // Sort
+    if (sortRes.col) {
+        filtered.sort(function(a,b){
+            if (sortRes.col==='mois_examen') return sortRes.asc ? moisKey(a.mois_examen)-moisKey(b.mois_examen) : moisKey(b.mois_examen)-moisKey(a.mois_examen);
+            if (sortRes.col==='date_examen') return sortRes.asc ? parseDateFR(a.date_examen)-parseDateFR(b.date_examen) : parseDateFR(b.date_examen)-parseDateFR(a.date_examen);
+            var va=(a[sortRes.col]||'').toString().toLowerCase(), vb=(b[sortRes.col]||'').toString().toLowerCase();
+            return sortRes.asc ? va.localeCompare(vb) : vb.localeCompare(va);
+        });
     }
     var tbody = document.getElementById('tbResultats');
     var nbR=0, nbE=0;
@@ -559,9 +604,304 @@ function renderResultats() {
         html += '<tr style="background:'+bgColor+'"><td>'+esc(r.nom||'')+'</td><td>'+esc(r.prenom||'')+'</td><td>'+icon+'</td><td>'+esc(r.mois_examen||'')+'</td><td>'+esc(r.date_examen||'')+'</td></tr>';
     });
     tbody.innerHTML = html;
-    var total = nbR + nbE;
-    var taux = total > 0 ? Math.round(nbR/total*100) : 0;
-    document.getElementById('cntResultats').textContent = 'Total : '+total+' | ✅ '+nbR+' | ❌ '+nbE+' | Taux : '+taux+'%';
+    document.getElementById('cntResultats').textContent = filtered.length + ' résultat(s)';
+}
+
+function doSortRes(col) { sortRes.asc = sortRes.col===col ? !sortRes.asc : true; sortRes.col=col; renderResultats(); }
+
+// GLOBAL SEARCH — clickable results
+function goToEleve(nom, prenom, tab) {
+    switchTab(tab);
+    var searchId = tab==='inscrits' ? 'srcIns' : tab==='ajournes' ? 'srcAj' : 'searchResultats';
+    var el = document.getElementById(searchId);
+    if (el) { el.value = nom; el.dispatchEvent(new Event('input')); }
+}
+
+// RENDER GLOBAL SEARCH
+function renderGlobalSearch() {
+    var s = (document.getElementById('srcGlobal').value || '').trim().toLowerCase();
+    var box = document.getElementById('globalResults');
+    
+    if (!s || s.length < 2) {
+        box.innerHTML = '<p style="text-align:center;color:#95a5a6;padding:30px">Tapez au moins 2 caractères pour rechercher</p>';
+        document.getElementById('cntGlobal').textContent = '';
+        return;
+    }
+    
+    // Chercher dans inscrits
+    var rIns = dataIns.filter(function(e) {
+        return (e.nom||'').toLowerCase().indexOf(s) === 0 || (e.prenom||'').toLowerCase().indexOf(s) === 0;
+    });
+    
+    // Chercher dans ajournés
+    var rAj = dataAj.filter(function(e) {
+        return (e.nom||'').toLowerCase().indexOf(s) === 0 || (e.prenom||'').toLowerCase().indexOf(s) === 0;
+    });
+    
+    // Chercher dans examens (candidats)
+    var rEx = [];
+    dataEx.forEach(function(ex) {
+        var found = ex.candidats.filter(function(c) {
+            return (c.nom||'').toLowerCase().indexOf(s) === 0 || (c.prenom||'').toLowerCase().indexOf(s) === 0;
+        });
+        if (found.length) rEx.push({exam: ex, candidats: found});
+    });
+    
+    // Chercher dans résultats
+    var rRes = dataResultats.filter(function(r) {
+        return (r.nom||'').toLowerCase().indexOf(s) === 0 || (r.prenom||'').toLowerCase().indexOf(s) === 0;
+    });
+    
+    var totalResults = rIns.length + rAj.length + rEx.length + rRes.length;
+    document.getElementById('cntGlobal').textContent = totalResults + ' résultat(s)';
+    
+    if (totalResults === 0) {
+        box.innerHTML = '<p style="text-align:center;color:#95a5a6;padding:30px">Aucun résultat pour "' + esc(s) + '"</p>';
+        return;
+    }
+    
+    var html = '';
+    
+    // Section Inscrits
+    if (rIns.length) {
+        html += '<div style="margin-bottom:15px"><h3 style="margin:10px 0;font-size:1em;color:#27ae60">📋 Liste d\'attente (' + rIns.length + ')</h3>';
+        html += '<div class="table-wrap"><table><thead><tr><th>Nom</th><th>Prénom</th><th>Mois</th><th>Date exam</th><th>Notes</th><th></th></tr></thead><tbody>';
+        rIns.forEach(function(e) {
+            var note = (e.note||'').replace(/Boîte auto/gi,'').trim();
+            var isPrio = e.prioritaire === 1;
+            var prioBadge = isPrio ? ' <span class="badge badge-prio">⭐</span>' : '';
+            html += '<tr><td><strong>' + esc(e.nom) + '</strong>' + prioBadge + '</td><td>' + esc(e.prenom) + '</td><td>' + esc(e.mois) + '</td><td>' + esc(e.date_exam) + '</td><td>' + esc(note) + '</td>';
+            html += '<td><a href="#" onclick="goToEleve(\'' + esc(e.nom).replace(/'/g,"\\'") + '\',\'' + esc(e.prenom).replace(/'/g,"\\'") + '\',\'inscrits\');return false" style="color:#3498db;font-size:0.85em">Voir →</a></td></tr>';
+        });
+        html += '</tbody></table></div></div>';
+    }
+    
+    // Section Ajournés
+    if (rAj.length) {
+        html += '<div style="margin-bottom:15px"><h3 style="margin:10px 0;font-size:1em;color:#e67e22">⚠️ Ajournés (' + rAj.length + ')</h3>';
+        html += '<div class="table-wrap"><table><thead><tr><th>Nom</th><th>Prénom</th><th>Présentation</th><th>Mois échec</th><th>Nouveau mois</th><th>Niveau</th><th></th></tr></thead><tbody>';
+        rAj.forEach(function(e) {
+            var isPrio = e.prioritaire === 1;
+            var prioBadge = isPrio ? ' <span class="badge badge-prio">⭐</span>' : '';
+            html += '<tr><td><strong>' + esc(e.nom) + '</strong>' + prioBadge + '</td><td>' + esc(e.prenom) + '</td><td>' + esc(e.presentation) + '</td><td>' + esc(e.mois_echec) + '</td><td>' + esc(e.mois) + '</td><td>' + esc(e.niveau) + '</td>';
+            html += '<td><a href="#" onclick="goToEleve(\'' + esc(e.nom).replace(/'/g,"\\'") + '\',\'' + esc(e.prenom).replace(/'/g,"\\'") + '\',\'ajournes\');return false" style="color:#3498db;font-size:0.85em">Voir →</a></td></tr>';
+        });
+        html += '</tbody></table></div></div>';
+    }
+    
+    // Section Examens
+    if (rEx.length) {
+        html += '<div style="margin-bottom:15px"><h3 style="margin:10px 0;font-size:1em;color:#3498db">📝 Examens (' + rEx.length + ')</h3>';
+        rEx.forEach(function(r) {
+            html += '<div class="exam-card" style="border-left-color:#3498db;padding:12px;margin-bottom:8px">';
+            html += '<strong>📅 ' + esc(r.exam.date) + (r.exam.horaire ? ' — ' + esc(r.exam.horaire) : '') + '</strong>';
+            if (r.exam.lieu) html += ' <span style="color:#7f8c8d;font-size:0.85em">📍 ' + esc(r.exam.lieu) + '</span>';
+            html += '<div style="margin-top:6px">';
+            r.candidats.forEach(function(c) {
+                var src = c.src === 'ajourné' ? ' <span style="color:#e67e22;font-size:0.8em">(Aj)</span>' : '';
+                html += '<span style="background:#f0f0f0;padding:3px 8px;border-radius:6px;margin:2px;display:inline-block;font-size:0.9em"><strong>' + esc(c.nom) + '</strong> ' + esc(c.prenom) + src + '</span> ';
+            });
+            html += '</div></div>';
+        });
+        html += '</div>';
+    }
+    
+    // Section Résultats
+    if (rRes.length) {
+        html += '<div style="margin-bottom:15px"><h3 style="margin:10px 0;font-size:1em;color:#9b59b6">📋 Résultats (' + rRes.length + ')</h3>';
+        html += '<div class="table-wrap"><table><thead><tr><th>Nom</th><th>Prénom</th><th>Résultat</th><th>Mois</th><th>Date</th><th></th></tr></thead><tbody>';
+        rRes.forEach(function(r) {
+            var isReussi = r.resultat === 'réussi';
+            var bg = isReussi ? '#d5f5e3' : '#fadbd8';
+            var icon = isReussi ? '✅ Réussi' : '❌ Échec';
+            html += '<tr style="background:' + bg + '"><td><strong>' + esc(r.nom||'') + '</strong></td><td>' + esc(r.prenom||'') + '</td><td>' + icon + '</td><td>' + esc(r.mois_examen||'') + '</td><td>' + esc(r.date_examen||'') + '</td>';
+            html += '<td><a href="#" onclick="goToEleve(\'' + esc(r.nom||'').replace(/'/g,"\\'") + '\',\'' + esc(r.prenom||'').replace(/'/g,"\\'") + '\',\'resultats\');return false" style="color:#3498db;font-size:0.85em">Voir →</a></td></tr>';
+        });
+        html += '</tbody></table></div></div>';
+    }
+    
+    box.innerHTML = html;
+}
+
+// ===== CALENDRIER EXAMENS =====
+function initCal() { var d=new Date(); calYear=d.getFullYear(); calMonth=d.getMonth(); }
+initCal();
+function calNav(dir) { calMonth+=dir; if(calMonth>11){calMonth=0;calYear++;} if(calMonth<0){calMonth=11;calYear--;} renderCalendrier(); }
+function calGoToday() { var d=new Date(); calYear=d.getFullYear(); calMonth=d.getMonth(); renderCalendrier(); }
+function renderCalendrier() {
+    var JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+    var title=MOIS[calMonth]+' '+calYear;
+    document.getElementById('calTitle').textContent='📆 '+title;
+    
+    // Premier jour du mois (0=dim, 1=lun, etc.) — convertir en lundi=0
+    var firstDay=new Date(calYear,calMonth,1).getDay();
+    firstDay = firstDay===0 ? 6 : firstDay-1; // Lundi = 0
+    var daysInMonth=new Date(calYear,calMonth+1,0).getDate();
+    var daysInPrev=new Date(calYear,calMonth,0).getDate();
+    
+    var today=new Date(); today.setHours(0,0,0,0);
+    
+    // Indexer les examens par jour
+    var examsByDay={};
+    if(dataEx) dataEx.forEach(function(ex){
+        try{
+            var p=ex.date.split('/');
+            var d=new Date(p[2],p[1]-1,p[0]);
+            if(d.getMonth()===calMonth && d.getFullYear()===calYear){
+                var day=d.getDate();
+                if(!examsByDay[day])examsByDay[day]=[];
+                examsByDay[day].push({type:'exam', data:ex});
+            }
+        }catch(e){}
+    });
+    
+    // Indexer les résultats (examens passés) par date d'examen
+    if(dataResultats) dataResultats.forEach(function(r){
+        try{
+            if(!r.date_examen) return;
+            var p=r.date_examen.split('/');
+            var d=new Date(p[2],p[1]-1,p[0]);
+            if(d.getMonth()===calMonth && d.getFullYear()===calYear){
+                var day=d.getDate();
+                if(!examsByDay[day])examsByDay[day]=[];
+                // Grouper par date pour éviter doublons
+                var existing = examsByDay[day].find(function(e){ return e.type==='resultat' && e.date===r.date_examen; });
+                if(existing){
+                    existing.resultats.push(r);
+                } else {
+                    examsByDay[day].push({type:'resultat', date:r.date_examen, resultats:[r]});
+                }
+            }
+        }catch(e){}
+    });
+    
+    var html='';
+    // Headers jours
+    JOURS.forEach(function(j){html+='<div class="cal-header">'+j+'</div>';});
+    
+    // Jours du mois précédent
+    for(var i=firstDay-1;i>=0;i--){
+        html+='<div class="cal-day other">'+(daysInPrev-i)+'</div>';
+    }
+    
+    // Jours du mois
+    for(var d=1;d<=daysInMonth;d++){
+        var isToday=calYear===today.getFullYear()&&calMonth===today.getMonth()&&d===today.getDate();
+        html+='<div class="cal-day'+(isToday?' today':'')+'">';
+        html+='<div style="font-weight:'+(isToday?'700':'600')+';margin-bottom:3px;color:'+(isToday?'#3498db':'#2c3e50')+'">'+d+'</div>';
+        if(examsByDay[d]){
+            examsByDay[d].forEach(function(item){
+                if(item.type==='exam'){
+                    var ex=item.data;
+                    var nb=ex.candidats?ex.candidats.length:0;
+                    var h=ex.horaire?' '+ex.horaire:'';
+                    var examDate=parseDateFR(ex.date);
+                    var isPast=examDate<today.getTime();
+                    var bg=isPast?'#95a5a6':nb>=ex.nb_places?'#e74c3c':'#3498db';
+                    html+='<div class="cal-exam" style="background:'+bg+'" onclick="calShowExam('+ex.id+')" title="'+esc(ex.date)+h+' — '+nb+'/'+ex.nb_places+' candidats">';
+                    html+=esc(h||'Exam')+' <strong>'+nb+'/'+ex.nb_places+'</strong>';
+                    if(ex.lieu&&ex.lieu!=='Beaune') html+=' <span style="opacity:0.8;font-size:0.9em">'+esc(ex.lieu)+'</span>';
+                    html+='</div>';
+                } else if(item.type==='resultat'){
+                    var res=item.resultats;
+                    var nbR=res.filter(function(r){return r.resultat==='réussi';}).length;
+                    var nbE=res.length-nbR;
+                    var bg2=nbE===0?'#27ae60':nbR===0?'#e74c3c':'#f39c12';
+                    html+='<div class="cal-exam" style="background:'+bg2+'" onclick="calShowResultats(\''+esc(item.date)+'\')" title="Résultats : '+nbR+' réussi(s), '+nbE+' échec(s)">';
+                    html+='✅'+nbR+' ❌'+nbE;
+                    html+='</div>';
+                }
+            });
+        }
+        html+='</div>';
+    }
+    
+    // Jours du mois suivant
+    var totalCells=firstDay+daysInMonth;
+    var remaining=totalCells%7===0?0:7-totalCells%7;
+    for(var i=1;i<=remaining;i++){
+        html+='<div class="cal-day other">'+i+'</div>';
+    }
+    
+    document.getElementById('calGrid').innerHTML=html;
+}
+
+function calShowExam(exId) {
+    var ex = dataEx.find(function(e){ return e.id===exId; });
+    if (!ex) return;
+    var nb = ex.candidats ? ex.candidats.length : 0;
+    var h = ex.horaire ? ' — ' + esc(ex.horaire) : '';
+    var lieu = ex.lieu ? ' — 📍 ' + esc(ex.lieu) : '';
+    
+    var html = '<div style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:500;display:flex;justify-content:center;align-items:center" onclick="if(event.target===this)this.remove()">';
+    html += '<div style="background:white;border-radius:12px;padding:25px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto" onclick="event.stopPropagation()">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px">';
+    html += '<h3 style="margin:0">📅 ' + esc(ex.date) + h + '</h3>';
+    html += '<button onclick="this.closest(\'div[style*=fixed]\'). remove()" style="background:none;border:none;font-size:1.3em;cursor:pointer">✕</button></div>';
+    html += '<div style="display:flex;gap:12px;margin-bottom:15px;font-size:0.9em;color:#7f8c8d">';
+    if (ex.lieu) html += '<span>📍 ' + esc(ex.lieu) + '</span>';
+    html += '<span>👥 ' + nb + ' / ' + ex.nb_places + ' places</span>';
+    html += '</div>';
+    
+    // Barre de remplissage
+    var pct = ex.nb_places > 0 ? Math.min(100, Math.round(nb/ex.nb_places*100)) : 0;
+    var barColor = pct >= 100 ? '#e74c3c' : pct >= 80 ? '#f39c12' : '#27ae60';
+    html += '<div style="background:#ecf0f1;border-radius:8px;height:20px;overflow:hidden;margin-bottom:15px">';
+    html += '<div style="height:100%;width:' + pct + '%;background:' + barColor + ';border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:0.75em;font-weight:700;color:white">' + pct + '%</div></div>';
+    
+    // Liste des candidats
+    if (nb > 0) {
+        html += '<h4 style="margin:0 0 10px;font-size:0.95em">Candidats :</h4>';
+        ex.candidats.forEach(function(c, i) {
+            var src = c.src === 'ajourné' ? '<span style="color:#e67e22;font-size:0.8em;margin-left:5px">(Ajourné)</span>' : '';
+            html += '<div style="padding:6px 10px;background:' + (i%2===0?'#f8f9fa':'white') + ';border-radius:6px;margin-bottom:3px;font-size:0.9em">';
+            html += '<strong>' + (i+1) + '.</strong> ' + esc(c.nom) + ' ' + esc(c.prenom) + src + '</div>';
+        });
+    } else {
+        html += '<p style="color:#95a5a6;font-style:italic">Aucun candidat inscrit</p>';
+    }
+    
+    html += '</div></div>';
+    
+    var overlay = document.createElement('div');
+    overlay.innerHTML = html;
+    document.body.appendChild(overlay.firstElementChild);
+}
+
+function calShowResultats(dateStr) {
+    var res = dataResultats.filter(function(r){ return r.date_examen === dateStr; });
+    if (!res.length) return;
+    var nbR = res.filter(function(r){ return r.resultat==='réussi'; }).length;
+    var nbE = res.length - nbR;
+    var taux = res.length > 0 ? Math.round(nbR/res.length*100) : 0;
+    
+    var html = '<div style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:500;display:flex;justify-content:center;align-items:center" onclick="if(event.target===this)this.remove()">';
+    html += '<div style="background:white;border-radius:12px;padding:25px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto" onclick="event.stopPropagation()">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px">';
+    html += '<h3 style="margin:0">📋 Résultats du ' + esc(dateStr) + '</h3>';
+    html += '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="background:none;border:none;font-size:1.3em;cursor:pointer">✕</button></div>';
+    
+    // Résumé
+    var tauxColor = taux>=70 ? '#27ae60' : taux>=50 ? '#f39c12' : '#e74c3c';
+    html += '<div style="display:flex;gap:15px;margin-bottom:15px;align-items:center">';
+    html += '<div style="background:'+tauxColor+';color:white;padding:10px 18px;border-radius:10px;text-align:center"><div style="font-size:1.5em;font-weight:700">'+taux+'%</div><div style="font-size:0.75em">de réussite</div></div>';
+    html += '<div><div style="font-size:0.9em">✅ '+nbR+' réussi'+(nbR>1?'s':'')+'</div><div style="font-size:0.9em">❌ '+nbE+' échec'+(nbE>1?'s':'')+'</div><div style="font-size:0.85em;color:#7f8c8d">'+res.length+' candidat'+(res.length>1?'s':'')+'</div></div>';
+    html += '</div>';
+    
+    // Liste des candidats
+    res.forEach(function(r, i) {
+        var isR = r.resultat==='réussi';
+        var bg = isR ? '#d5f5e3' : '#fadbd8';
+        var icon = isR ? '✅' : '❌';
+        html += '<div style="padding:6px 10px;background:'+bg+';border-radius:6px;margin-bottom:3px;font-size:0.9em;display:flex;justify-content:space-between">';
+        html += '<span><strong>' + esc(r.nom) + '</strong> ' + esc(r.prenom) + '</span>';
+        html += '<span>' + icon + '</span></div>';
+    });
+    
+    html += '</div></div>';
+    var overlay = document.createElement('div');
+    overlay.innerHTML = html;
+    document.body.appendChild(overlay.firstElementChild);
 }
 
 // GAMEPAD KONAMI
