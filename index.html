@@ -478,7 +478,7 @@ async function loadStats() {
         dataIns.forEach(e=>{const p=e.presentation||'1ère présentation';parPres[p]=(parPres[p]||0)+1;});
         dataAj.forEach(e=>{const p=e.presentation||'2ème présentation';parPres[p]=(parPres[p]||0)+1;});
 
-        function tauxLine(r,e){const t=r+e;const tx=t>0?Math.round(r/t*1000)/10:0;const c=tx>=60?'taux-ok':tx>=40?'taux-mid':'taux-low';return '<div class="taux-bar"><div class="fill '+c+'" style="width:'+Math.max(tx,8)+'%">'+tx+'%</div></div><div style="font-size:0.8em;color:#7f8c8d">'+r+'/'+t+'</div>';}
+        function tauxLine(r,e){const t=r+e;const tx=t>0?Math.round(r/t*1000)/10:0;const c=tx>=60?'#27ae60':tx>=40?'#f39c12':'#e74c3c';return '<div style="display:flex;align-items:center;gap:8px;width:100%"><div style="flex:1;background:#ecf0f1;border-radius:6px;height:22px;overflow:hidden"><div style="height:100%;width:'+Math.max(tx,5)+'%;background:'+c+';border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:0.75em;font-weight:700;color:white;min-width:35px">'+tx+'%</div></div><span style="font-size:0.82em;color:#7f8c8d;white-space:nowrap">'+r+'/'+t+'</span></div>';}
 
         let histHtml='';
         try {
@@ -499,18 +499,18 @@ async function loadStats() {
                 histHtml='<div class="stat-card" style="grid-column:1/-1"><h3>🎯 Taux de réussite</h3>';
                 histHtml+='<div style="text-align:center;margin:15px 0"><div style="font-size:2.8em;font-weight:700;color:'+txColor+'">'+taux+'%</div><div style="color:#7f8c8d">'+reussis+' réussis / '+total+' examens</div></div>';
                 histHtml+='<h4 style="margin:12px 0 6px">📂 Par type</h4>';
-                Object.entries(hParType).forEach(function(x){histHtml+='<div class="stat-row"><span>'+x[0]+'</span><span>'+tauxLine(x[1].r,x[1].e)+'</span></div>';});
+                Object.entries(hParType).forEach(function(x){histHtml+='<div style="margin:6px 0"><div style="font-size:0.9em;margin-bottom:3px">'+x[0]+'</div>'+tauxLine(x[1].r,x[1].e)+'</div>';});
                 histHtml+='<h4 style="margin:12px 0 6px">🎯 Par présentation</h4>';
-                ['1ère présentation','2ème présentation','3ème présentation','4ème présentation','5ème présentation','Annulation'].forEach(function(p){if(hParPres[p])histHtml+='<div class="stat-row"><span>'+p+'</span><span>'+tauxLine(hParPres[p].r,hParPres[p].e)+'</span></div>';});
+                ['1ère présentation','2ème présentation','3ème présentation','4ème présentation','5ème présentation','Annulation'].forEach(function(p){if(hParPres[p])histHtml+='<div style="margin:6px 0"><div style="font-size:0.9em;margin-bottom:3px">'+p+'</div>'+tauxLine(hParPres[p].r,hParPres[p].e)+'</div>';});
                 histHtml+='<h4 style="margin:12px 0 6px">⚙️ Par boîte</h4>';
-                if(hParBoite[1].r+hParBoite[1].e>0) histHtml+='<div class="stat-row"><span>Boîte automatique</span><span>'+tauxLine(hParBoite[1].r,hParBoite[1].e)+'</span></div>';
-                if(hParBoite[0].r+hParBoite[0].e>0) histHtml+='<div class="stat-row"><span>Boîte manuelle</span><span>'+tauxLine(hParBoite[0].r,hParBoite[0].e)+'</span></div>';
+                if(hParBoite[1].r+hParBoite[1].e>0) histHtml+='<div style="margin:6px 0"><div style="font-size:0.9em;margin-bottom:3px">Boîte automatique</div>'+tauxLine(hParBoite[1].r,hParBoite[1].e)+'</div>';
+                if(hParBoite[0].r+hParBoite[0].e>0) histHtml+='<div style="margin:6px 0"><div style="font-size:0.9em;margin-bottom:3px">Boîte manuelle</div>'+tauxLine(hParBoite[0].r,hParBoite[0].e)+'</div>';
                 histHtml+='<h4 style="margin:12px 0 6px">📅 Par mois</h4>';
-                Object.entries(hParMois).sort(function(a,b){return moisKey(b[0])-moisKey(a[0]);}).slice(0,6).forEach(function(x){histHtml+='<div class="stat-row"><span>'+x[0]+'</span><span>'+tauxLine(x[1].r,x[1].e)+'</span></div>';});
+                Object.entries(hParMois).sort(function(a,b){return moisKey(b[0])-moisKey(a[0]);}).slice(0,12).forEach(function(x){histHtml+='<div style="margin:6px 0"><div style="font-size:0.9em;margin-bottom:3px">'+x[0]+'</div>'+tauxLine(x[1].r,x[1].e)+'</div>';});
                 histHtml+='<h4 style="margin:12px 0 6px">📆 Par année</h4>';
                 const hParAnnee={};
                 Object.entries(hParMois).forEach(function(x){try{const a=x[0].split(' ')[1];if(!hParAnnee[a])hParAnnee[a]={r:0,e:0};hParAnnee[a].r+=x[1].r;hParAnnee[a].e+=x[1].e;}catch(e){}});
-                Object.keys(hParAnnee).sort().reverse().forEach(function(a){histHtml+='<div class="stat-row"><span>'+a+'</span><span>'+tauxLine(hParAnnee[a].r,hParAnnee[a].e)+'</span></div>';});
+                Object.keys(hParAnnee).sort().reverse().forEach(function(a){histHtml+='<div style="margin:6px 0"><div style="font-size:0.9em;margin-bottom:3px">'+a+'</div>'+tauxLine(hParAnnee[a].r,hParAnnee[a].e)+'</div>';});
                 histHtml+='</div>';
             }
         } catch(e) { console.log('Historique non disponible:',e); }
