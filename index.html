@@ -558,6 +558,7 @@ async function loadStats() {
         
         // Nouveaux élèves par mois
         var nouveauxParMois = {};
+        var ajournesParMois = {};
         dataIns.forEach(function(e){
             if(e.created_at){
                 try{
@@ -571,11 +572,29 @@ async function loadStats() {
                 }catch(ex){}
             }
         });
-        var nouveauxTries = Object.entries(nouveauxParMois).sort(function(a,b){return moisKey(b[0])-moisKey(a[0]);}).slice(0,12);
+        dataAj.forEach(function(e){
+            var dateStr = e.date_echec || e.created_at;
+            if(dateStr){
+                try{
+                    var p = dateStr.split('/');
+                    if(p.length===3){
+                        var mNum = parseInt(p[1]);
+                        var an = p[2].length===4 ? p[2] : '20'+p[2];
+                        var mLabel = MOIS[mNum-1]+' '+an;
+                        ajournesParMois[mLabel] = (ajournesParMois[mLabel]||0)+1;
+                    }
+                }catch(ex){}
+            }
+        });
+        var tousMoisNouveaux = new Set(Object.keys(nouveauxParMois).concat(Object.keys(ajournesParMois)));
+        var nouveauxTries = Array.from(tousMoisNouveaux).map(function(m){
+            return {mois:m, ins:nouveauxParMois[m]||0, aj:ajournesParMois[m]||0};
+        }).sort(function(a,b){return moisKey(b.mois)-moisKey(a.mois);}).slice(0,12);
         if(nouveauxTries.length){
             html+='<div class="stat-card"><h3>📈 Nouveaux élèves par mois</h3>';
             nouveauxTries.forEach(function(x){
-                html+='<div class="stat-row"><span>'+x[0]+'</span><span class="val" style="color:#3498db">'+x[1]+' nouveaux</span></div>';
+                var total=x.ins+x.aj;
+                html+='<div class="stat-row"><span>'+x.mois+'</span><span class="val" style="color:#3498db">'+total+' <span style="font-weight:400;color:#7f8c8d;font-size:0.85em">('+x.ins+' ins, '+x.aj+' aj)</span></span></div>';
             });
             html+='</div>';
         }
