@@ -496,25 +496,10 @@ async function loadStats() {
                 hist.forEach(h=>{if(h.mois_examen){if(!hParMois[h.mois_examen])hParMois[h.mois_examen]={r:0,e:0};h.resultat==='réussi'?hParMois[h.mois_examen].r++:hParMois[h.mois_examen].e++;}});
 
                 const txColor=taux>=60?'#27ae60':taux>=40?'#f39c12':'#e74c3c';
-                histHtml='<div class="stat-card" style="grid-column:1/-1"><h3>🎯 Taux de réussite</h3>';
-                histHtml+='<div style="text-align:center;margin:15px 0"><div style="font-size:2.8em;font-weight:700;color:'+txColor+'">'+taux+'%</div><div style="color:#7f8c8d">'+reussis+' réussis / '+total+' examens</div></div>';
-                histHtml+='<h4 style="margin:12px 0 6px">📂 Par type</h4>';
-                Object.entries(hParType).forEach(function(x){histHtml+='<div style="margin:6px 0"><div style="font-size:0.9em;margin-bottom:3px">'+x[0]+'</div>'+tauxLine(x[1].r,x[1].e)+'</div>';});
-                histHtml+='<h4 style="margin:12px 0 6px">🎯 Par présentation</h4>';
-                ['1ère présentation','2ème présentation','3ème présentation','4ème présentation','5ème présentation','Annulation'].forEach(function(p){if(hParPres[p])histHtml+='<div style="margin:6px 0"><div style="font-size:0.9em;margin-bottom:3px">'+p+'</div>'+tauxLine(hParPres[p].r,hParPres[p].e)+'</div>';});
-                histHtml+='<h4 style="margin:12px 0 6px">⚙️ Par boîte</h4>';
-                if(hParBoite[1].r+hParBoite[1].e>0) histHtml+='<div style="margin:6px 0"><div style="font-size:0.9em;margin-bottom:3px">Boîte automatique</div>'+tauxLine(hParBoite[1].r,hParBoite[1].e)+'</div>';
-                if(hParBoite[0].r+hParBoite[0].e>0) histHtml+='<div style="margin:6px 0"><div style="font-size:0.9em;margin-bottom:3px">Boîte manuelle</div>'+tauxLine(hParBoite[0].r,hParBoite[0].e)+'</div>';
-                histHtml+='<h4 style="margin:12px 0 6px">📅 Par mois</h4>';
-                Object.entries(hParMois).sort(function(a,b){return moisKey(b[0])-moisKey(a[0]);}).slice(0,12).forEach(function(x){histHtml+='<div style="margin:6px 0"><div style="font-size:0.9em;margin-bottom:3px">'+x[0]+'</div>'+tauxLine(x[1].r,x[1].e)+'</div>';});
-                histHtml+='<h4 style="margin:12px 0 6px">📆 Par année</h4>';
-                const hParAnnee={};
-                Object.entries(hParMois).forEach(function(x){try{const a=x[0].split(' ')[1];if(!hParAnnee[a])hParAnnee[a]={r:0,e:0};hParAnnee[a].r+=x[1].r;hParAnnee[a].e+=x[1].e;}catch(e){}});
-                Object.keys(hParAnnee).sort().reverse().forEach(function(a){histHtml+='<div style="margin:6px 0"><div style="font-size:0.9em;margin-bottom:3px">'+a+'</div>'+tauxLine(hParAnnee[a].r,hParAnnee[a].e)+'</div>';});
                 
-                // Délai de repassage
+                // Délai de repassage (avant taux de réussite)
                 var delais = hist.filter(function(h){ return h.delai_mois !== null && h.delai_mois !== undefined && h.delai_mois > 0; }).map(function(h){ return h.delai_mois; });
-                histHtml+='<h4 style="margin:15px 0 6px">⏱️ Délai de repassage</h4>';
+                histHtml='<div class="stat-card" style="grid-column:1/-1"><h3>⏱️ Délai de repassage</h3>';
                 if (delais.length > 0) {
                     var dMoy = delais.reduce(function(a,b){return a+b;},0) / delais.length;
                     var dMin = Math.min.apply(null, delais);
@@ -532,6 +517,24 @@ async function loadStats() {
                 } else {
                     histHtml+='<div style="color:#7f8c8d;font-size:0.9em;font-style:italic">Aucun délai enregistré. Les délais apparaîtront après les clôtures d\'examens.</div>';
                 }
+                histHtml+='</div>';
+                
+                // Taux de réussite
+                histHtml+='<div class="stat-card" style="grid-column:1/-1"><h3>🎯 Taux de réussite</h3>';
+                histHtml+='<div style="text-align:center;margin:15px 0"><div style="font-size:2.8em;font-weight:700;color:'+txColor+'">'+taux+'%</div><div style="color:#7f8c8d">'+reussis+' réussis / '+total+' examens</div></div>';
+                histHtml+='<h4 style="margin:12px 0 6px">📂 Par type</h4>';
+                Object.entries(hParType).forEach(function(x){histHtml+='<div style="margin:6px 0"><div style="font-size:0.9em;margin-bottom:3px">'+x[0]+'</div>'+tauxLine(x[1].r,x[1].e)+'</div>';});
+                histHtml+='<h4 style="margin:12px 0 6px">🎯 Par présentation</h4>';
+                ['1ère présentation','2ème présentation','3ème présentation','4ème présentation','5ème présentation','Annulation'].forEach(function(p){if(hParPres[p])histHtml+='<div style="margin:6px 0"><div style="font-size:0.9em;margin-bottom:3px">'+p+'</div>'+tauxLine(hParPres[p].r,hParPres[p].e)+'</div>';});
+                histHtml+='<h4 style="margin:12px 0 6px">⚙️ Par boîte</h4>';
+                if(hParBoite[1].r+hParBoite[1].e>0) histHtml+='<div style="margin:6px 0"><div style="font-size:0.9em;margin-bottom:3px">Boîte automatique</div>'+tauxLine(hParBoite[1].r,hParBoite[1].e)+'</div>';
+                if(hParBoite[0].r+hParBoite[0].e>0) histHtml+='<div style="margin:6px 0"><div style="font-size:0.9em;margin-bottom:3px">Boîte manuelle</div>'+tauxLine(hParBoite[0].r,hParBoite[0].e)+'</div>';
+                histHtml+='<h4 style="margin:12px 0 6px">📅 Par mois</h4>';
+                Object.entries(hParMois).sort(function(a,b){return moisKey(b[0])-moisKey(a[0]);}).slice(0,12).forEach(function(x){histHtml+='<div style="margin:6px 0"><div style="font-size:0.9em;margin-bottom:3px">'+x[0]+'</div>'+tauxLine(x[1].r,x[1].e)+'</div>';});
+                histHtml+='<h4 style="margin:12px 0 6px">📆 Par année</h4>';
+                const hParAnnee={};
+                Object.entries(hParMois).forEach(function(x){try{const a=x[0].split(' ')[1];if(!hParAnnee[a])hParAnnee[a]={r:0,e:0};hParAnnee[a].r+=x[1].r;hParAnnee[a].e+=x[1].e;}catch(e){}});
+                Object.keys(hParAnnee).sort().reverse().forEach(function(a){histHtml+='<div style="margin:6px 0"><div style="font-size:0.9em;margin-bottom:3px">'+a+'</div>'+tauxLine(hParAnnee[a].r,hParAnnee[a].e)+'</div>';});
                 
                 histHtml+='</div>';
             }
