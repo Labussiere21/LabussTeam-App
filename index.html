@@ -511,6 +511,28 @@ async function loadStats() {
                 const hParAnnee={};
                 Object.entries(hParMois).forEach(function(x){try{const a=x[0].split(' ')[1];if(!hParAnnee[a])hParAnnee[a]={r:0,e:0};hParAnnee[a].r+=x[1].r;hParAnnee[a].e+=x[1].e;}catch(e){}});
                 Object.keys(hParAnnee).sort().reverse().forEach(function(a){histHtml+='<div style="margin:6px 0"><div style="font-size:0.9em;margin-bottom:3px">'+a+'</div>'+tauxLine(hParAnnee[a].r,hParAnnee[a].e)+'</div>';});
+                
+                // Délai de repassage
+                var delais = hist.filter(function(h){ return h.delai_mois !== null && h.delai_mois !== undefined && h.delai_mois > 0; }).map(function(h){ return h.delai_mois; });
+                histHtml+='<h4 style="margin:15px 0 6px">⏱️ Délai de repassage</h4>';
+                if (delais.length > 0) {
+                    var dMoy = delais.reduce(function(a,b){return a+b;},0) / delais.length;
+                    var dMin = Math.min.apply(null, delais);
+                    var dMax = Math.max.apply(null, delais);
+                    histHtml+='<div style="background:#9b59b6;color:white;padding:15px;border-radius:10px;text-align:center;margin:8px 0">';
+                    histHtml+='<div style="font-size:0.85em;font-weight:600">⏱️ DÉLAI MOYEN</div>';
+                    histHtml+='<div style="font-size:2.2em;font-weight:700">'+dMoy.toFixed(1)+' mois</div>';
+                    histHtml+='<div style="font-size:0.8em;opacity:0.85">Entre date d\'échec et nouveau passage</div>';
+                    histHtml+='<div style="font-size:0.8em;opacity:0.85">'+delais.length+' repassage'+(delais.length>1?'s':'')+' enregistré'+(delais.length>1?'s':'')+'</div>';
+                    histHtml+='</div>';
+                    histHtml+='<div style="display:flex;gap:20px;margin:6px 0;font-size:0.9em">';
+                    histHtml+='<span>⬇️ Min : <strong>'+dMin+' mois</strong></span>';
+                    histHtml+='<span>⬆️ Max : <strong>'+dMax+' mois</strong></span>';
+                    histHtml+='</div>';
+                } else {
+                    histHtml+='<div style="color:#7f8c8d;font-size:0.9em;font-style:italic">Aucun délai enregistré. Les délais apparaîtront après les clôtures d\'examens.</div>';
+                }
+                
                 histHtml+='</div>';
             }
         } catch(e) { console.log('Historique non disponible:',e); }
