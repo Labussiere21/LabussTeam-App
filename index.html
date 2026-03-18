@@ -555,6 +555,31 @@ async function loadStats() {
         html+='<div class="stat-card"><h3>📅 Répartition par mois</h3>';
         moisTries.slice(0,8).forEach(function(x){html+='<div class="stat-row"><span>'+x[0]+'</span><span class="val">'+(x[1].ins+x[1].aj)+' <span style="font-weight:400;color:#7f8c8d;font-size:0.85em">('+x[1].ins+' ins + '+x[1].aj+' aj)</span></span></div>';});
         html+='</div>';
+        
+        // Nouveaux élèves par mois
+        var nouveauxParMois = {};
+        dataIns.forEach(function(e){
+            if(e.created_at){
+                try{
+                    var p = e.created_at.split('/');
+                    if(p.length===3){
+                        var mNum = parseInt(p[1]);
+                        var an = p[2].length===4 ? p[2] : '20'+p[2];
+                        var mLabel = MOIS[mNum-1]+' '+an;
+                        nouveauxParMois[mLabel] = (nouveauxParMois[mLabel]||0)+1;
+                    }
+                }catch(ex){}
+            }
+        });
+        var nouveauxTries = Object.entries(nouveauxParMois).sort(function(a,b){return moisKey(b[0])-moisKey(a[0]);}).slice(0,12);
+        if(nouveauxTries.length){
+            html+='<div class="stat-card"><h3>📈 Nouveaux élèves par mois</h3>';
+            nouveauxTries.forEach(function(x){
+                html+='<div class="stat-row"><span>'+x[0]+'</span><span class="val" style="color:#3498db">'+x[1]+' nouveaux</span></div>';
+            });
+            html+='</div>';
+        }
+        
         html+=histHtml;
         html+='</div>';
         box.innerHTML=html;
