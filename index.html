@@ -247,12 +247,11 @@
     <div class="tabs" id="tabsBar">
         <div class="tab active" data-tab="inscrits" onclick="switchTab('inscrits')">📋 Liste d'attente <span id="cntIns"></span></div>
         <div class="tab" data-tab="ajournes" onclick="switchTab('ajournes')">⚠️ Ajournés <span id="cntAj"></span></div>
-        <div class="tab" data-tab="examens" onclick="switchTab('examens')">📝 Examens <span id="cntEx"></span></div>
+        <div class="tab" data-tab="calendrier" onclick="switchTab('calendrier');renderCalendrier()">📆 Calendrier <span id="cntEx"></span></div>
         <div class="tab tab-admin" data-tab="stats" onclick="switchTab('stats')" id="tabStats" style="display:none">📊 Statistiques</div>
         <div class="tab" data-tab="resultats" onclick="switchTab('resultats')" id="tabResultats">📋 Résultats</div>
         <div class="tab tab-admin" data-tab="places" onclick="switchTab('places')" id="tabPlaces" style="display:none">🗓️ Places</div>
         <div class="tab" data-tab="search" onclick="switchTab('search')">🔍 Recherche</div>
-        <div class="tab" data-tab="calendrier" onclick="switchTab('calendrier');renderCalendrier()">📆 Calendrier</div>
     </div>
     <div class="content">
         <div class="tab-content active" id="tab-inscrits">
@@ -289,6 +288,9 @@
             </tr></thead><tbody id="tbAj"></tbody></table></div>
         </div>
         <div class="tab-content" id="tab-examens">
+            <div style="margin-bottom:12px">
+                <button class="btn btn-sm" onclick="switchTab('calendrier');renderCalendrier()" style="background:#34495e">◀ Retour au calendrier</button>
+            </div>
             <div id="examBox"><div class="loader">Chargement...</div></div>
         </div>
         <div class="tab-content" id="tab-stats">
