@@ -248,10 +248,10 @@
         <div class="tab active" data-tab="inscrits" onclick="switchTab('inscrits')">📋 Liste d'attente <span id="cntIns"></span></div>
         <div class="tab" data-tab="ajournes" onclick="switchTab('ajournes')">⚠️ Ajournés <span id="cntAj"></span></div>
         <div class="tab" data-tab="calendrier" onclick="switchTab('calendrier');renderCalendrier()">📆 Calendrier <span id="cntEx"></span></div>
-        <div class="tab tab-admin" data-tab="stats" onclick="switchTab('stats')" id="tabStats" style="display:none">📊 Statistiques</div>
         <div class="tab" data-tab="resultats" onclick="switchTab('resultats')" id="tabResultats">📋 Résultats</div>
         <div class="tab tab-admin" data-tab="places" onclick="switchTab('places')" id="tabPlaces" style="display:none">🗓️ Places</div>
         <div class="tab" data-tab="search" onclick="switchTab('search')">🔍 Recherche</div>
+        <div class="tab tab-admin" data-tab="stats" onclick="switchTab('stats')" id="tabStats" style="display:none">📊 Statistiques</div>
     </div>
     <div class="content">
         <div class="tab-content active" id="tab-inscrits">
@@ -544,14 +544,35 @@ async function loadPlaces() {
         const {data:places,error} = await sb.from('places').select('*');
         if (error) throw error;
         const parMois={};
+        // Compter inscrits
         dataIns.forEach(e=>{if(e.mois)parMois[e.mois]=(parMois[e.mois]||0)+1;});
+        // Compter ajournés
         dataAj.forEach(e=>{if(e.mois&&e.mois.trim())parMois[e.mois]=(parMois[e.mois]||0)+1;});
+        // Compter historique (résultats passés)
+        dataResultats.forEach(r=>{if(r.mois_examen)parMois[r.mois_examen]=(parMois[r.mois_examen]||0)+1;});
+        
+        // Compter inscrits examen par mois
+        var examParMois = {};
+        dataEx.forEach(function(ex){
+            if(!ex.candidats) return;
+            ex.candidats.forEach(function(c){
+                // Chercher le mois de l'élève
+                var found = dataIns.find(function(e){ return e.nom===c.nom && e.prenom===c.prenom; });
+                if(!found) found = dataAj.find(function(e){ return e.nom===c.nom && e.prenom===c.prenom; });
+                if(found && found.mois) examParMois[found.mois] = (examParMois[found.mois]||0)+1;
+            });
+        });
+        
         const sorted=(places||[]).sort((a,b)=>moisKey(a.mois)-moisKey(b.mois));
         box.innerHTML='<div class="places-grid">'+sorted.map(function(p){
             const occ=parMois[p.mois]||0;
-            const pct=p.nb>0?Math.min(Math.round(occ/p.nb*100),100):0;
-            const color=pct>=90?'#e74c3c':pct>=70?'#f39c12':'#27ae60';
-            return '<div class="place-card"><div class="mois-name">'+esc(p.mois)+'</div><div class="place-bar"><div class="place-fill" style="width:'+pct+'%;background:'+color+'"></div></div><div class="place-txt"><strong>'+occ+'</strong> / '+p.nb+' places ('+pct+'%)</div></div>';
+            const nbExam=examParMois[p.mois]||0;
+            const pct=p.nb>0?Math.round(occ/p.nb*100):0;
+            const pctBar=Math.min(pct,100);
+            const color=occ>p.nb?'#e74c3c':pct>=90?'#f39c12':'#27ae60';
+            const txtColor=occ>p.nb?'color:#e74c3c;':'';
+            var examTxt = nbExam>0 ? '<div style="font-size:0.8em;color:#3498db;font-weight:600">📝 '+nbExam+'</div>' : '';
+            return '<div class="place-card"><div class="mois-name">'+esc(p.mois)+'</div><div style="font-size:1.4em;font-weight:700;'+txtColor+'">'+occ+' / '+p.nb+'</div><div class="place-bar"><div class="place-fill" style="width:'+pctBar+'%;background:'+color+'"></div></div><div class="place-txt">'+pct+'% occupé</div>'+examTxt+'</div>';
         }).join('')+'</div>';
     } catch(e) { box.innerHTML='<p style="color:#e74c3c;padding:20px">Erreur : '+e.message+'</p>'; }
 }
