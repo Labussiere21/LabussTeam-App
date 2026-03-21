@@ -464,6 +464,11 @@ async function loadStats() {
     box.innerHTML = '<div class="loader">Chargement des statistiques...</div>';
     try {
         const nbIns=dataIns.length, nbAj=dataAj.length;
+        
+        // Snapshot mensuel automatique
+        await saveStatsSnapshot(nbIns, nbAj);
+        var statsHistory = await loadStatsHistory();
+        
         const types={Traditionnelle:0,Accompagnée:0};
         dataIns.forEach(e=>{if(types[e.type]!==undefined)types[e.type]++;});
         dataAj.forEach(e=>{if(types[e.type]!==undefined)types[e.type]++;});
@@ -544,7 +549,20 @@ async function loadStats() {
         html+='<div class="mini-card" style="background:#3498db"><div class="mc-val">'+nbIns+'</div><div class="mc-lbl">Inscrits</div></div>';
         html+='<div class="mini-card" style="background:#e67e22"><div class="mc-val">'+nbAj+'</div><div class="mc-lbl">Ajournés</div></div>';
         html+='<div class="mini-card" style="background:#27ae60"><div class="mc-val">'+(nbIns+nbAj)+'</div><div class="mc-lbl">Total actif</div></div>';
-        html+='</div><div class="stats-grid">';
+        html+='</div>';
+        
+        // === GRAPHIQUE ÉVOLUTION TOTAUX ===
+        if(statsHistory && statsHistory.length >= 1){
+            html+='<div class="stat-card" style="margin-bottom:15px"><h3>📊 Évolution des effectifs</h3>';
+            html+='<div style="overflow-x:auto"><canvas id="evoChart" style="width:100%;height:300px"></canvas></div>';
+            html+='<div style="display:flex;gap:20px;justify-content:center;margin-top:8px;font-size:0.85em">';
+            html+='<span><span style="display:inline-block;width:14px;height:14px;background:#3498db;border-radius:3px;vertical-align:middle;margin-right:4px"></span> Inscrits</span>';
+            html+='<span><span style="display:inline-block;width:14px;height:14px;background:#e67e22;border-radius:3px;vertical-align:middle;margin-right:4px"></span> Ajournés</span>';
+            html+='<span><span style="display:inline-block;width:14px;height:14px;background:#27ae60;border-radius:3px;vertical-align:middle;margin-right:4px"></span> Total actif</span>';
+            html+='</div></div>';
+        }
+        
+        html+='<div class="stats-grid">';
         html+='<div class="stat-card"><h3>🚗 Par type de conduite</h3>';
         Object.entries(types).forEach(function(x){html+='<div class="stat-row"><span>'+(x[0]==='Traditionnelle'?'🚙':'👨‍👩‍👧')+' '+x[0]+'</span><span class="val">'+x[1]+'</span></div>';});
         html+='</div>';
@@ -599,51 +617,49 @@ async function loadStats() {
             html+='</div>';
         }
         
-        // === GRAPHIQUE ÉVOLUTION INSCRITS / AJOURNÉS ===
-        // On utilise moisTries qui a déjà les bons comptages ins/aj par mois assigné
-        // + on enrichit avec l'historique pour les mois passés
-        var evoMois = {};
-        // Données actuelles (inscrits + ajournés par mois assigné)
-        moisTries.forEach(function(x){ evoMois[x[0]] = {ins: x[1].ins, aj: x[1].aj}; });
-        // Données historiques (résultats passés par mois d'examen)
-        try {
-            var histAll = dataResultats || [];
-            histAll.forEach(function(h){
-                if(h.mois_examen){
-                    if(!evoMois[h.mois_examen]) evoMois[h.mois_examen] = {ins:0, aj:0};
-                    if(h.resultat==='réussi') evoMois[h.mois_examen].ins++;
-                    else evoMois[h.mois_examen].aj++;
-                }
-            });
-        } catch(ex){}
-        var evoSorted = Object.entries(evoMois).sort(function(a,b){ return moisKey(a[0]) - moisKey(b[0]); });
-
-        if(evoSorted.length >= 2){
-            html+='<div class="stat-card" style="grid-column:1/-1"><h3>📊 Évolution inscrits / ajournés par mois</h3>';
-            html+='<div style="overflow-x:auto"><canvas id="evoChart" style="width:100%;height:300px"></canvas></div>';
-            html+='<div style="display:flex;gap:20px;justify-content:center;margin-top:8px;font-size:0.85em">';
-            html+='<span><span style="display:inline-block;width:14px;height:14px;background:#3498db;border-radius:3px;vertical-align:middle;margin-right:4px"></span> Inscrits</span>';
-            html+='<span><span style="display:inline-block;width:14px;height:14px;background:#e67e22;border-radius:3px;vertical-align:middle;margin-right:4px"></span> Ajournés</span>';
-            html+='<span><span style="display:inline-block;width:14px;height:14px;background:#27ae60;border-radius:3px;vertical-align:middle;margin-right:4px"></span> Total</span>';
-            html+='</div></div>';
-        }
-
         html+=histHtml;
         html+='</div>';
         box.innerHTML=html;
-
-        // Dessiner le graphique APRÈS le rendu
-        if(evoSorted.length >= 2){
-            requestAnimationFrame(function(){ drawEvoChart(evoSorted); });
+        
+        // Dessiner le graphique après rendu DOM
+        if(statsHistory && statsHistory.length >= 1){
+            requestAnimationFrame(function(){ drawEvoChart(statsHistory); });
         }
     } catch(e) { box.innerHTML='<p style="color:#e74c3c;padding:20px">Erreur : '+e.message+'</p>'; }
+}
+
+// === STATS MENSUELLES : snapshot + historique ===
+async function saveStatsSnapshot(nbIns, nbAj){
+    try {
+        var now = new Date();
+        var moisLabel = MOIS[now.getMonth()] + ' ' + now.getFullYear();
+        // Vérifier si un snapshot existe déjà pour ce mois
+        var {data:existing} = await sb.from('stats_mensuelles').select('id,nb_inscrits,nb_ajournes').eq('mois', moisLabel).limit(1);
+        if(existing && existing.length > 0){
+            // Mettre à jour si les chiffres ont changé
+            var ex = existing[0];
+            if(ex.nb_inscrits !== nbIns || ex.nb_ajournes !== nbAj){
+                await sb.from('stats_mensuelles').update({nb_inscrits: nbIns, nb_ajournes: nbAj, updated_at: new Date().toISOString()}).eq('id', ex.id);
+            }
+        } else {
+            // Créer un nouveau snapshot
+            await sb.from('stats_mensuelles').insert({mois: moisLabel, nb_inscrits: nbIns, nb_ajournes: nbAj});
+        }
+    } catch(e){ console.log('saveStatsSnapshot err:', e); }
+}
+
+async function loadStatsHistory(){
+    try {
+        var {data, error} = await sb.from('stats_mensuelles').select('*').order('created_at', {ascending: true});
+        if(error) throw error;
+        return (data || []).sort(function(a,b){ return moisKey(a.mois) - moisKey(b.mois); });
+    } catch(e){ console.log('loadStatsHistory err:', e); return []; }
 }
 
 function drawEvoChart(data){
     var canvas = document.getElementById('evoChart');
     if(!canvas) return;
     var ctx = canvas.getContext('2d');
-    // Forcer les dimensions réelles du canvas
     var parent = canvas.parentElement;
     var W = parent.offsetWidth || 760;
     var H = 300;
@@ -654,20 +670,20 @@ function drawEvoChart(data){
     canvas.style.height = H + 'px';
     ctx.scale(dpr, dpr);
 
-    var padL=50, padR=20, padT=25, padB=55;
+    var padL=55, padR=20, padT=25, padB=55;
     var chartW = W-padL-padR, chartH = H-padT-padB;
     var n = data.length;
 
     var labels=[], vIns=[], vAj=[], vTot=[];
     data.forEach(function(d){
-        var parts = d[0].split(' ');
+        var parts = d.mois.split(' ');
         labels.push(parts[0].substring(0,3)+'.'+parts[1].substring(2));
-        vIns.push(d[1].ins);
-        vAj.push(d[1].aj);
-        vTot.push(d[1].ins + d[1].aj);
+        vIns.push(d.nb_inscrits);
+        vAj.push(d.nb_ajournes);
+        vTot.push(d.nb_inscrits + d.nb_ajournes);
     });
-    var maxVal = Math.max.apply(null, vTot.concat([5]));
-    maxVal = Math.ceil(maxVal / 5) * 5;
+    var maxVal = Math.max.apply(null, vTot.concat([10]));
+    maxVal = Math.ceil(maxVal * 1.15 / 10) * 10; // +15% marge en haut
 
     // Fond
     ctx.fillStyle='#fafafa'; ctx.fillRect(0,0,W,H);
@@ -710,21 +726,21 @@ function drawEvoChart(data){
     drawLine(vAj, '#e67e22', 2.5);
 
     // Points + valeurs
-    function drawDots(vals, color){
+    function drawDots(vals, color, yOffset){
         for(var i=0;i<n;i++){
             ctx.beginPath();
-            ctx.arc(getX(i), getY(vals[i]), 4, 0, Math.PI*2);
+            ctx.arc(getX(i), getY(vals[i]), n<=12 ? 5 : 3, 0, Math.PI*2);
             ctx.fillStyle='white'; ctx.fill();
             ctx.strokeStyle=color; ctx.lineWidth=2; ctx.stroke();
-            if(vals[i] > 0){
+            if(n <= 18){
                 ctx.fillStyle=color; ctx.font='bold 10px Segoe UI, sans-serif'; ctx.textAlign='center';
-                ctx.fillText(vals[i], getX(i), getY(vals[i])-10);
+                ctx.fillText(vals[i], getX(i), getY(vals[i]) + yOffset);
             }
         }
     }
-    drawDots(vTot, '#27ae60');
-    drawDots(vIns, '#3498db');
-    drawDots(vAj, '#e67e22');
+    drawDots(vIns, '#3498db', -12);
+    drawDots(vAj, '#e67e22', -12);
+    drawDots(vTot, '#27ae60', -12);
 
     // Labels X
     ctx.fillStyle='#555'; ctx.font='11px Segoe UI, sans-serif'; ctx.textAlign='center';
@@ -737,6 +753,12 @@ function drawEvoChart(data){
             ctx.fillText(labels[i], 0, 0);
             ctx.restore();
         }
+    }
+
+    // Si un seul point, afficher un message
+    if(n === 1){
+        ctx.fillStyle='#999'; ctx.font='12px Segoe UI, sans-serif'; ctx.textAlign='center';
+        ctx.fillText('Le graphique se remplira au fil des mois', W/2, H-10);
     }
 }
 
