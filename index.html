@@ -600,36 +600,27 @@ async function loadStats() {
         }
         
         // === GRAPHIQUE ÉVOLUTION INSCRITS / AJOURNÉS ===
-        // Collecter les données mensuelles depuis l'historique + données actuelles
-        var evoData = {};
-        // Depuis l'historique : compter réussis et échoués par mois
+        // On utilise moisTries qui a déjà les bons comptages ins/aj par mois assigné
+        // + on enrichit avec l'historique pour les mois passés
+        var evoMois = {};
+        // Données actuelles (inscrits + ajournés par mois assigné)
+        moisTries.forEach(function(x){ evoMois[x[0]] = {ins: x[1].ins, aj: x[1].aj}; });
+        // Données historiques (résultats passés par mois d'examen)
         try {
-            var histData = dataResultats || [];
-            histData.forEach(function(h){
+            var histAll = dataResultats || [];
+            histAll.forEach(function(h){
                 if(h.mois_examen){
-                    if(!evoData[h.mois_examen]) evoData[h.mois_examen] = {ins:0, aj:0};
-                    if(h.resultat==='réussi') evoData[h.mois_examen].ins++;
-                    else evoData[h.mois_examen].aj++;
+                    if(!evoMois[h.mois_examen]) evoMois[h.mois_examen] = {ins:0, aj:0};
+                    if(h.resultat==='réussi') evoMois[h.mois_examen].ins++;
+                    else evoMois[h.mois_examen].aj++;
                 }
             });
         } catch(ex){}
-        // Ajouter les données actuelles (inscrits et ajournés par mois assigné)
-        dataIns.forEach(function(e){
-            if(e.mois){
-                if(!evoData[e.mois]) evoData[e.mois] = {ins:0, aj:0};
-                evoData[e.mois].ins++;
-            }
-        });
-        dataAj.forEach(function(e){
-            if(e.mois && e.mois.trim()){
-                if(!evoData[e.mois]) evoData[e.mois] = {ins:0, aj:0};
-                evoData[e.mois].aj++;
-            }
-        });
-        var evoSorted = Object.entries(evoData).sort(function(a,b){ return moisKey(a[0]) - moisKey(b[0]); });
-        if(evoSorted.length > 1){
+        var evoSorted = Object.entries(evoMois).sort(function(a,b){ return moisKey(a[0]) - moisKey(b[0]); });
+
+        if(evoSorted.length >= 2){
             html+='<div class="stat-card" style="grid-column:1/-1"><h3>📊 Évolution inscrits / ajournés par mois</h3>';
-            html+='<canvas id="evoChart" width="800" height="320" style="width:100%;max-height:320px"></canvas>';
+            html+='<div style="overflow-x:auto"><canvas id="evoChart" style="width:100%;height:300px"></canvas></div>';
             html+='<div style="display:flex;gap:20px;justify-content:center;margin-top:8px;font-size:0.85em">';
             html+='<span><span style="display:inline-block;width:14px;height:14px;background:#3498db;border-radius:3px;vertical-align:middle;margin-right:4px"></span> Inscrits</span>';
             html+='<span><span style="display:inline-block;width:14px;height:14px;background:#e67e22;border-radius:3px;vertical-align:middle;margin-right:4px"></span> Ajournés</span>';
@@ -641,11 +632,9 @@ async function loadStats() {
         html+='</div>';
         box.innerHTML=html;
 
-        // Dessiner le graphique après rendu du DOM
-        if(evoSorted.length > 1){
-            setTimeout(function(){
-                try{ drawEvoChart(evoSorted); }catch(ex){ console.log('drawEvoChart err',ex); }
-            }, 100);
+        // Dessiner le graphique APRÈS le rendu
+        if(evoSorted.length >= 2){
+            requestAnimationFrame(function(){ drawEvoChart(evoSorted); });
         }
     } catch(e) { box.innerHTML='<p style="color:#e74c3c;padding:20px">Erreur : '+e.message+'</p>'; }
 }
@@ -654,21 +643,25 @@ function drawEvoChart(data){
     var canvas = document.getElementById('evoChart');
     if(!canvas) return;
     var ctx = canvas.getContext('2d');
+    // Forcer les dimensions réelles du canvas
+    var parent = canvas.parentElement;
+    var W = parent.offsetWidth || 760;
+    var H = 300;
     var dpr = window.devicePixelRatio || 1;
-    var rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
     ctx.scale(dpr, dpr);
-    var W = rect.width, H = rect.height;
-    var padL=50, padR=20, padT=20, padB=60;
+
+    var padL=50, padR=20, padT=25, padB=55;
     var chartW = W-padL-padR, chartH = H-padT-padB;
     var n = data.length;
 
-    // Extraire valeurs
     var labels=[], vIns=[], vAj=[], vTot=[];
     data.forEach(function(d){
         var parts = d[0].split(' ');
-        labels.push(parts[0].substring(0,3)+' '+parts[1]);
+        labels.push(parts[0].substring(0,3)+'.'+parts[1].substring(2));
         vIns.push(d[1].ins);
         vAj.push(d[1].aj);
         vTot.push(d[1].ins + d[1].aj);
@@ -679,9 +672,9 @@ function drawEvoChart(data){
     // Fond
     ctx.fillStyle='#fafafa'; ctx.fillRect(0,0,W,H);
 
-    // Grille horizontale
+    // Grille
     var nLines = 5;
-    ctx.strokeStyle='#e0e0e0'; ctx.lineWidth=1;
+    ctx.strokeStyle='#e8e8e8'; ctx.lineWidth=1;
     ctx.fillStyle='#999'; ctx.font='11px Segoe UI, sans-serif'; ctx.textAlign='right';
     for(var i=0;i<=nLines;i++){
         var y = padT + chartH - (i/nLines)*chartH;
@@ -690,23 +683,21 @@ function drawEvoChart(data){
         ctx.fillText(val, padL-8, y+4);
     }
 
-    // Points X
     var xStep = n > 1 ? chartW / (n-1) : chartW;
     function getX(idx){ return padL + (n>1 ? idx*xStep : chartW/2); }
     function getY(val){ return padT + chartH - (val/maxVal)*chartH; }
 
-    // Dessiner zone remplie pour Total
+    // Zone remplie Total
     ctx.beginPath();
-    ctx.moveTo(getX(0), getY(0));
+    ctx.moveTo(getX(0), padT+chartH);
     for(var i=0;i<n;i++) ctx.lineTo(getX(i), getY(vTot[i]));
     ctx.lineTo(getX(n-1), padT+chartH);
-    ctx.lineTo(getX(0), padT+chartH);
     ctx.closePath();
-    ctx.fillStyle='rgba(39,174,96,0.08)'; ctx.fill();
+    ctx.fillStyle='rgba(39,174,96,0.07)'; ctx.fill();
 
     // Lignes
-    function drawLine(vals, color, width){
-        ctx.beginPath(); ctx.strokeStyle=color; ctx.lineWidth=width;
+    function drawLine(vals, color, w){
+        ctx.beginPath(); ctx.strokeStyle=color; ctx.lineWidth=w;
         ctx.lineJoin='round'; ctx.lineCap='round';
         for(var i=0;i<n;i++){
             if(i===0) ctx.moveTo(getX(i), getY(vals[i]));
@@ -714,20 +705,21 @@ function drawEvoChart(data){
         }
         ctx.stroke();
     }
-    drawLine(vTot, '#27ae60', 2);
+    drawLine(vTot, '#27ae60', 1.5);
     drawLine(vIns, '#3498db', 2.5);
     drawLine(vAj, '#e67e22', 2.5);
 
-    // Points
+    // Points + valeurs
     function drawDots(vals, color){
         for(var i=0;i<n;i++){
             ctx.beginPath();
             ctx.arc(getX(i), getY(vals[i]), 4, 0, Math.PI*2);
             ctx.fillStyle='white'; ctx.fill();
             ctx.strokeStyle=color; ctx.lineWidth=2; ctx.stroke();
-            // Valeur au-dessus du point
-            ctx.fillStyle=color; ctx.font='bold 10px Segoe UI, sans-serif'; ctx.textAlign='center';
-            ctx.fillText(vals[i], getX(i), getY(vals[i])-8);
+            if(vals[i] > 0){
+                ctx.fillStyle=color; ctx.font='bold 10px Segoe UI, sans-serif'; ctx.textAlign='center';
+                ctx.fillText(vals[i], getX(i), getY(vals[i])-10);
+            }
         }
     }
     drawDots(vTot, '#27ae60');
@@ -735,13 +727,13 @@ function drawEvoChart(data){
     drawDots(vAj, '#e67e22');
 
     // Labels X
-    ctx.fillStyle='#666'; ctx.font='11px Segoe UI, sans-serif'; ctx.textAlign='center';
-    var labelStep = Math.max(1, Math.ceil(n / 12));
+    ctx.fillStyle='#555'; ctx.font='11px Segoe UI, sans-serif'; ctx.textAlign='center';
+    var labelStep = Math.max(1, Math.ceil(n / 14));
     for(var i=0;i<n;i++){
         if(i % labelStep === 0 || i===n-1){
             ctx.save();
-            ctx.translate(getX(i), padT+chartH+12);
-            ctx.rotate(-Math.PI/6);
+            ctx.translate(getX(i), padT+chartH+14);
+            ctx.rotate(-Math.PI/5);
             ctx.fillText(labels[i], 0, 0);
             ctx.restore();
         }
