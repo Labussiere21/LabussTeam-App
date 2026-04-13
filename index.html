@@ -9,7 +9,11 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', system-ui, sans-serif; background: #ecf0f1; color: #2c3e50; min-height: 100vh; }
         .header { background: #2c3e50; color: white; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
-        .header h1 { font-size: 1.15em; font-weight: 600; }
+        .header h1 { font-size: 1.15em; font-weight: 600; white-space: nowrap; }
+        .header-search { flex: 1; max-width: 400px; min-width: 200px; margin: 0 20px; }
+        .header-search input { width: 100%; padding: 10px 16px; border: none; border-radius: 25px; font-size: 0.95em; background: rgba(255,255,255,0.15); color: white; outline: none; transition: all 0.2s; }
+        .header-search input::placeholder { color: rgba(255,255,255,0.7); }
+        .header-search input:focus { background: rgba(255,255,255,0.25); box-shadow: 0 0 0 3px rgba(52,152,219,0.4); }
         .header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
         .status { font-size: 0.85em; }
         .status.ok { color: #2ecc71; }
@@ -239,6 +243,9 @@
     </div>
     <div class="header">
         <h1>🚗 Auto-École <span class="readonly-tag" id="modeTag">LECTURE SEULE</span></h1>
+        <div class="header-search">
+            <input type="text" id="srcGlobalHeader" placeholder="🔍 Recherche globale..." oninput="headerSearchInput()" onfocus="switchTab('search')">
+        </div>
         <div class="header-right">
             <span class="status" id="statusTxt">⚪ Connexion...</span>
             <button class="btn" onclick="refreshAll()">🔄 Actualiser</button>
@@ -248,7 +255,6 @@
     </div>
     <div class="offline-banner" id="offlineBanner">⚠️ Mode hors-ligne — données du <span id="offlineDate">?</span> — Actualisation impossible</div>
     <div class="tabs" id="tabsBar">
-        <div class="tab" data-tab="search" onclick="switchTab('search')">🔍 Recherche</div>
         <div class="tab active" data-tab="inscrits" onclick="switchTab('inscrits')">📋 Liste d'attente <span id="cntIns"></span></div>
         <div class="tab" data-tab="ajournes" onclick="switchTab('ajournes')">⚠️ Ajournés <span id="cntAj"></span></div>
         <div class="tab" data-tab="calendrier" onclick="switchTab('calendrier');renderCalendrier()">📆 Calendrier <span id="cntEx"></span></div>
@@ -318,12 +324,12 @@
             </tr></thead><tbody id="tbResultats"></tbody></table></div>
         </div>
         <div class="tab-content" id="tab-search">
-            <div class="filters">
-                <input type="text" id="srcGlobal" placeholder="🔍 Rechercher partout (nom ou prénom)..." oninput="renderGlobalSearch()">
-                <span class="filter-count" id="cntGlobal"></span>
+            <div class="search-results-header" style="text-align:center;padding:15px 0;border-bottom:1px solid #ddd;margin-bottom:15px">
+                <h2 style="margin:0;color:#2c3e50;font-size:1.2em">🔍 Résultats de recherche</h2>
+                <span class="filter-count" id="cntGlobal" style="color:#7f8c8d"></span>
             </div>
             <div id="globalResults">
-                <p style="text-align:center;color:#95a5a6;padding:30px">Tapez un nom ou prénom pour rechercher dans toutes les données</p>
+                <p style="text-align:center;color:#95a5a6;padding:30px">Utilisez la barre de recherche ci-dessus pour rechercher dans toutes les données</p>
             </div>
         </div>
         <div class="tab-content" id="tab-calendrier">
@@ -919,9 +925,14 @@ function goToEleve(nom, prenom, tab) {
     if (el) { el.value = nom; el.dispatchEvent(new Event('input')); }
 }
 
+// HEADER SEARCH INPUT - synchronise avec la recherche globale
+function headerSearchInput() {
+    renderGlobalSearch();
+}
+
 // RENDER GLOBAL SEARCH
 function renderGlobalSearch() {
-    var s = (document.getElementById('srcGlobal').value || '').trim().toLowerCase();
+    var s = (document.getElementById('srcGlobalHeader').value || '').trim().toLowerCase();
     var box = document.getElementById('globalResults');
     
     if (!s || s.length < 2) {
