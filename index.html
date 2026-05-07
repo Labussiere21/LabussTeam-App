@@ -9,11 +9,7 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', system-ui, sans-serif; background: #ecf0f1; color: #2c3e50; min-height: 100vh; }
         .header { background: #2c3e50; color: white; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
-        .header h1 { font-size: 1.15em; font-weight: 600; white-space: nowrap; }
-        .header-search { flex: 1; max-width: 400px; min-width: 200px; margin: 0 20px; }
-        .header-search input { width: 100%; padding: 10px 16px; border: none; border-radius: 25px; font-size: 0.95em; background: rgba(255,255,255,0.15); color: white; outline: none; transition: all 0.2s; }
-        .header-search input::placeholder { color: rgba(255,255,255,0.7); }
-        .header-search input:focus { background: rgba(255,255,255,0.25); box-shadow: 0 0 0 3px rgba(52,152,219,0.4); }
+        .header h1 { font-size: 1.15em; font-weight: 600; }
         .header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
         .status { font-size: 0.85em; }
         .status.ok { color: #2ecc71; }
@@ -149,6 +145,26 @@
         .egg-overlay.show { display:flex; }
         .egg-overlay img { max-width:90%; max-height:70vh; border-radius:12px; }
         .egg-overlay button { margin-top:20px; background:none; border:2px solid white; color:white; padding:10px 30px; border-radius:8px; font-size:1em; cursor:pointer; }
+        /* RESULT CARDS */
+        .res-cards-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:14px; padding:4px 0; }
+        .res-month-card { background:white; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,0.1); overflow:hidden; cursor:pointer; transition:box-shadow 0.15s; }
+        .res-month-card:hover { box-shadow:0 3px 10px rgba(0,0,0,0.15); }
+        .res-card-body { padding:16px 18px 14px; }
+        .res-card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+        .res-card-mois { font-weight:700; font-size:1em; color:#2c3e50; }
+        .res-card-toggle { color:#7f8c8d; font-size:0.85em; }
+        .res-card-stats { display:flex; align-items:baseline; gap:10px; margin-bottom:6px; }
+        .res-card-taux { font-size:1.9em; font-weight:700; line-height:1; }
+        .res-card-counts { font-size:0.82em; color:#7f8c8d; }
+        .res-card-bar-bg { background:#ecf0f1; border-radius:4px; height:7px; overflow:hidden; margin-bottom:0; }
+        .res-card-bar-fill { height:100%; border-radius:4px; transition:width 0.3s; }
+        .res-card-shadow { height:2px; background:#bdc3c7; }
+        .res-eleves-list { border-top:1px solid #ecf0f1; padding:8px 18px 10px; display:none; }
+        .res-eleve-item { display:flex; justify-content:space-between; align-items:center; padding:4px 8px; border-radius:6px; margin-bottom:3px; font-size:0.83em; }
+        .res-eleve-ok { background:#f0faf4; color:#1e8449; }
+        .res-eleve-ko { background:#fdf2f1; color:#c0392b; }
+        .res-eleve-name { font-weight:600; }
+        .res-eleve-meta { color:#95a5a6; font-size:0.9em; }
     </style>
 </head>
 <body>
@@ -243,9 +259,6 @@
     </div>
     <div class="header">
         <h1>🚗 Auto-École <span class="readonly-tag" id="modeTag">LECTURE SEULE</span></h1>
-        <div class="header-search">
-            <input type="text" id="srcGlobalHeader" placeholder="🔍 Recherche globale..." oninput="headerSearchInput()" onfocus="switchTab('search')">
-        </div>
         <div class="header-right">
             <span class="status" id="statusTxt">⚪ Connexion...</span>
             <button class="btn" onclick="refreshAll()">🔄 Actualiser</button>
@@ -255,6 +268,7 @@
     </div>
     <div class="offline-banner" id="offlineBanner">⚠️ Mode hors-ligne — données du <span id="offlineDate">?</span> — Actualisation impossible</div>
     <div class="tabs" id="tabsBar">
+        <div class="tab" data-tab="search" onclick="switchTab('search')">🔍 Recherche</div>
         <div class="tab active" data-tab="inscrits" onclick="switchTab('inscrits')">📋 Liste d'attente <span id="cntIns"></span></div>
         <div class="tab" data-tab="ajournes" onclick="switchTab('ajournes')">⚠️ Ajournés <span id="cntAj"></span></div>
         <div class="tab" data-tab="calendrier" onclick="switchTab('calendrier');renderCalendrier()">📆 Calendrier <span id="cntEx"></span></div>
@@ -311,25 +325,21 @@
         <div class="tab-content" id="tab-resultats">
             <div style="padding:10px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
                 <strong>📋 Historique des résultats</strong>
-                <select id="fltResultatsMois" onchange="renderResultats()" style="padding:6px;border-radius:6px;border:1px solid #ddd"><option value="">Tous les mois</option></select>
+                <label style="font-size:0.9em;color:#7f8c8d">Année :</label>
+                <select id="fltResultatsAnnee" onchange="renderResultats()" style="padding:6px;border-radius:6px;border:1px solid #ddd"></select>
                 <input id="searchResultats" type="text" placeholder="🔍 Rechercher un élève..." oninput="renderResultats()" style="padding:6px 10px;border-radius:6px;border:1px solid #ddd;min-width:200px">
-                <span id="cntResultats" style="color:#7f8c8d;font-size:0.9em"></span>
+                <button onclick="document.getElementById('searchResultats').value='';renderResultats()" style="background:none;border:none;color:#7f8c8d;cursor:pointer;font-size:0.95em">✕</button>
+                <span id="cntResultats" style="margin-left:auto;color:#7f8c8d;font-size:0.9em;font-weight:600"></span>
             </div>
-            <div class="table-wrap"><table><thead><tr>
-                <th onclick="doSortRes('nom')">Nom <span class="arrow">▲▼</span></th>
-                <th onclick="doSortRes('prenom')">Prénom <span class="arrow">▲▼</span></th>
-                <th onclick="doSortRes('resultat')">Résultat <span class="arrow">▲▼</span></th>
-                <th onclick="doSortRes('mois_examen')">Mois examen <span class="arrow">▲▼</span></th>
-                <th onclick="doSortRes('date_examen')">Date examen <span class="arrow">▲▼</span></th>
-            </tr></thead><tbody id="tbResultats"></tbody></table></div>
+            <div id="resCardsGrid" class="res-cards-grid"></div>
         </div>
         <div class="tab-content" id="tab-search">
-            <div class="search-results-header" style="text-align:center;padding:15px 0;border-bottom:1px solid #ddd;margin-bottom:15px">
-                <h2 style="margin:0;color:#2c3e50;font-size:1.2em">🔍 Résultats de recherche</h2>
-                <span class="filter-count" id="cntGlobal" style="color:#7f8c8d"></span>
+            <div class="filters">
+                <input type="text" id="srcGlobal" placeholder="🔍 Rechercher partout (nom ou prénom)..." oninput="renderGlobalSearch()">
+                <span class="filter-count" id="cntGlobal"></span>
             </div>
             <div id="globalResults">
-                <p style="text-align:center;color:#95a5a6;padding:30px">Utilisez la barre de recherche ci-dessus pour rechercher dans toutes les données</p>
+                <p style="text-align:center;color:#95a5a6;padding:30px">Tapez un nom ou prénom pour rechercher dans toutes les données</p>
             </div>
         </div>
         <div class="tab-content" id="tab-calendrier">
@@ -868,51 +878,118 @@ async function loadResultats() {
         var {data,error} = await sb.from('historique').select('*').order('date_resultat',{ascending:false});
         if (error) throw error;
         dataResultats = data || [];
-        // Remplir le filtre mois
-        var moisSet = new Set();
-        dataResultats.forEach(function(r){ if(r.mois_examen) moisSet.add(r.mois_examen); });
-        var sel = document.getElementById('fltResultatsMois');
-        var current = sel.value;
-        sel.innerHTML = '<option value="">Tous les mois</option>';
-        Array.from(moisSet).sort().forEach(function(m){ sel.innerHTML += '<option value="'+esc(m)+'">'+esc(m)+'</option>'; });
-        sel.value = current;
         renderResultats();
     } catch(e) { console.log('loadResultats err', e); }
 }
 function renderResultats() {
-    var filtre = document.getElementById('fltResultatsMois').value;
     var search = (document.getElementById('searchResultats').value || '').trim().toLowerCase();
-    var filtered = dataResultats;
-    if (search) {
-        filtered = dataResultats.filter(function(r){
-            var nom = (r.nom || '').toLowerCase();
-            var prenom = (r.prenom || '').toLowerCase();
-            return nom.indexOf(search) === 0 || prenom.indexOf(search) === 0;
-        });
-    } else if (filtre) {
-        filtered = dataResultats.filter(function(r){ return r.mois_examen === filtre; });
-    }
-    // Sort
-    if (sortRes.col) {
-        filtered.sort(function(a,b){
-            if (sortRes.col==='mois_examen') return sortRes.asc ? moisKey(a.mois_examen)-moisKey(b.mois_examen) : moisKey(b.mois_examen)-moisKey(a.mois_examen);
-            if (sortRes.col==='date_examen') return sortRes.asc ? parseDateFR(a.date_examen)-parseDateFR(b.date_examen) : parseDateFR(b.date_examen)-parseDateFR(a.date_examen);
-            var va=(a[sortRes.col]||'').toString().toLowerCase(), vb=(b[sortRes.col]||'').toString().toLowerCase();
-            return sortRes.asc ? va.localeCompare(vb) : vb.localeCompare(va);
-        });
-    }
-    var tbody = document.getElementById('tbResultats');
-    var nbR=0, nbE=0;
-    var html = '';
-    filtered.forEach(function(r){
-        var isReussi = r.resultat === 'réussi';
-        if (isReussi) nbR++; else nbE++;
-        var bgColor = isReussi ? '#d5f5e3' : '#fadbd8';
-        var icon = isReussi ? '✅ Réussi' : '❌ Échec';
-        html += '<tr style="background:'+bgColor+'"><td>'+esc(r.nom||'')+'</td><td>'+esc(r.prenom||'')+'</td><td>'+icon+'</td><td>'+esc(r.mois_examen||'')+'</td><td>'+esc(r.date_examen||'')+'</td></tr>';
+    var anneeEl = document.getElementById('fltResultatsAnnee');
+    var anneeFiltre = anneeEl ? anneeEl.value : '';
+    var rechercheGlobale = !!search;
+    var grid = document.getElementById('resCardsGrid');
+
+    // Construire la liste des années disponibles
+    var anneesSet = new Set();
+    dataResultats.forEach(function(r){
+        var m = r.mois_examen || '';
+        if (m) { var parts = m.trim().split(' '); if (parts.length === 2) anneesSet.add(parts[1]); }
     });
-    tbody.innerHTML = html;
-    document.getElementById('cntResultats').textContent = filtered.length + ' résultat(s)';
+    var anneesCourante = String(new Date().getFullYear());
+    anneesSet.add(anneesCourante);
+    var anneesTri = Array.from(anneesSet).sort();
+    var prevAnnee = anneeEl ? anneeEl.value : '';
+    anneeEl.innerHTML = anneesTri.map(function(a){ return '<option value="'+a+'">'+a+'</option>'; }).join('');
+    if (prevAnnee && anneesTri.includes(prevAnnee)) anneeEl.value = prevAnnee;
+    else { anneeEl.value = anneesCourante; anneeFiltre = anneesCourante; }
+    anneeFiltre = anneeEl.value;
+
+    // Regrouper par mois
+    var parMois = {};
+    var totalR = 0, totalE = 0;
+    dataResultats.forEach(function(r){
+        var mois = r.mois_examen || '';
+        if (!mois) return;
+        if (!rechercheGlobale) {
+            if (!mois.trim().endsWith(anneeFiltre)) return;
+        }
+        if (search) {
+            var nom = (r.nom || '').toLowerCase(), prenom = (r.prenom || '').toLowerCase();
+            if (nom.indexOf(search) !== 0 && prenom.indexOf(search) !== 0) return;
+        }
+        if (!parMois[mois]) parMois[mois] = [];
+        parMois[mois].push(r);
+        r.resultat === 'réussi' ? totalR++ : totalE++;
+    });
+
+    var moisTries = Object.keys(parMois).sort(function(a,b){ return moisKey(a)-moisKey(b); });
+
+    if (!moisTries.length) {
+        var msg = search ? 'Aucun résultat pour « '+esc(search)+' »' : 'Aucun résultat pour '+anneeFiltre;
+        grid.innerHTML = '<p style="text-align:center;color:#95a5a6;padding:40px;grid-column:1/-1">'+msg+'</p>';
+        document.getElementById('cntResultats').textContent = '';
+        return;
+    }
+
+    var html = '';
+    moisTries.forEach(function(mois, idx){
+        var eleves = parMois[mois];
+        var nbR = eleves.filter(function(h){ return h.resultat === 'réussi'; }).length;
+        var nbE = eleves.length - nbR;
+        var taux = eleves.length > 0 ? Math.round((nbR / eleves.length) * 100) : 0;
+        var color = taux >= 70 ? '#27ae60' : taux >= 50 ? '#f39c12' : '#e74c3c';
+
+        // Trier : échecs en premier, puis par nom
+        var elevesTries = eleves.slice().sort(function(a,b){
+            var ra = a.resultat === 'réussi' ? 1 : 0, rb = b.resultat === 'réussi' ? 1 : 0;
+            if (ra !== rb) return ra - rb;
+            return (a.nom||'').localeCompare(b.nom||'');
+        });
+
+        var listHtml = '';
+        elevesTries.forEach(function(r){
+            var ok = r.resultat === 'réussi';
+            var icon = ok ? '✅' : '❌';
+            var cls = ok ? 'res-eleve-ok' : 'res-eleve-ko';
+            var infos = [];
+            if (r.date_examen) infos.push(esc(r.date_examen));
+            if (r.presentation && r.presentation !== '1ère présentation') infos.push(esc(r.presentation));
+            if (r.type) infos.push(esc(r.type));
+            listHtml += '<div class="res-eleve-item '+cls+'">'
+                + '<span class="res-eleve-name">'+icon+' '+esc(r.nom||'')+' '+esc(r.prenom||'')+'</span>'
+                + (infos.length ? '<span class="res-eleve-meta">'+infos.join(' · ')+'</span>' : '')
+                + '</div>';
+        });
+
+        html += '<div class="res-month-card" onclick="toggleResCard(this)">'
+            + '<div class="res-card-body">'
+            + '<div class="res-card-header">'
+            + '<span class="res-card-mois">'+esc(mois)+'</span>'
+            + '<span class="res-card-toggle">▶</span>'
+            + '</div>'
+            + '<div class="res-card-stats">'
+            + '<span class="res-card-taux" style="color:'+color+'">'+taux+'%</span>'
+            + '<span class="res-card-counts">✅ '+nbR+' &nbsp;❌ '+nbE+' &nbsp;('+eleves.length+')</span>'
+            + '</div>'
+            + '<div class="res-card-bar-bg"><div class="res-card-bar-fill" style="width:'+taux+'%;background:'+color+'"></div></div>'
+            + '</div>'
+            + '<div class="res-eleves-list">'+listHtml+'</div>'
+            + '<div class="res-card-shadow"></div>'
+            + '</div>';
+    });
+    grid.innerHTML = html;
+
+    var total = totalR + totalE;
+    var taux = total > 0 ? Math.round((totalR/total)*100) : 0;
+    var prefix = search ? '🔍 « '+esc(search)+' »' : anneeFiltre;
+    document.getElementById('cntResultats').textContent = prefix+' — '+total+' candidat(s) | ✅ '+totalR+' | ❌ '+totalE+' | Taux : '+taux+'%';
+}
+
+function toggleResCard(card) {
+    var list = card.querySelector('.res-eleves-list');
+    var toggle = card.querySelector('.res-card-toggle');
+    var open = list.style.display === 'block';
+    list.style.display = open ? 'none' : 'block';
+    toggle.textContent = open ? '▶' : '▼';
 }
 
 function doSortRes(col) { sortRes.asc = sortRes.col===col ? !sortRes.asc : true; sortRes.col=col; renderResultats(); }
@@ -925,14 +1002,9 @@ function goToEleve(nom, prenom, tab) {
     if (el) { el.value = nom; el.dispatchEvent(new Event('input')); }
 }
 
-// HEADER SEARCH INPUT - synchronise avec la recherche globale
-function headerSearchInput() {
-    renderGlobalSearch();
-}
-
 // RENDER GLOBAL SEARCH
 function renderGlobalSearch() {
-    var s = (document.getElementById('srcGlobalHeader').value || '').trim().toLowerCase();
+    var s = (document.getElementById('srcGlobal').value || '').trim().toLowerCase();
     var box = document.getElementById('globalResults');
     
     if (!s || s.length < 2) {
