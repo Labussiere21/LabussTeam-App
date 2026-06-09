@@ -128,6 +128,18 @@
         /* GAMEPAD */
         .gamepad-btn { position:fixed; bottom:15px; right:15px; width:44px; height:44px; border-radius:50%; background:rgba(0,0,0,0.15); border:none; font-size:1.4em; cursor:pointer; z-index:50; opacity:0.3; transition:opacity 0.3s; }
         .offline-banner { display:none; background:#e67e22; color:white; text-align:center; padding:8px 15px; font-size:0.88em; font-weight:600; }
+        .mode-toggle { display:none; background:#2c3e50; text-align:center; padding:7px 15px; }
+        .mode-toggle button { border:none; padding:6px 22px; border-radius:6px; font-size:0.9em; font-weight:700; cursor:pointer; margin:0 4px; transition:background 0.15s; color:white; }
+        .mode-btn-active { background:#3498db !important; }
+        .mode-btn-motos-active { background:#9b59b6 !important; }
+        .moto-type-toggle { display:none; padding:5px 15px; background:#f0f3f4; border-bottom:1px solid #d5d8dc; }
+        .moto-type-toggle button { border:none; padding:4px 14px; border-radius:5px; font-size:0.82em; font-weight:700; cursor:pointer; margin:0 3px; background:#bdc3c7; color:white; transition:background 0.15s; }
+        .moto-type-btn-plateau { background:#e67e22 !important; }
+        .moto-type-btn-circulation { background:#e91e63 !important; }
+        tr.moto-plateau td { background:#fdebd0; color:#784212; }
+        tr.moto-circulation td { background:#fce4ec; color:#880e4f; }
+        .badge-plateau { background:#e67e22; color:white; font-size:0.75em; padding:1px 6px; border-radius:4px; font-weight:700; }
+        .badge-circulation { background:#e91e63; color:white; font-size:0.75em; padding:1px 6px; border-radius:4px; font-weight:700; }
         .offline-banner.show { display:block; }
         .gamepad-btn:hover { opacity:0.6; }
         .gamepad-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:300; justify-content:center; align-items:center; flex-direction:column; }
@@ -267,17 +279,25 @@
         </div>
     </div>
     <div class="offline-banner" id="offlineBanner">⚠️ Mode hors-ligne — données du <span id="offlineDate">?</span> — Actualisation impossible</div>
+    <div class="mode-toggle" id="modeToggle">
+        <button id="btnModeVoitures" class="mode-btn-active" onclick="switchMode('voitures')">🚗 Voitures</button>
+        <button id="btnModeMotos" style="background:#34495e" onclick="switchMode('motos')">🏍️ Motos</button>
+    </div>
     <div class="tabs" id="tabsBar">
         <div class="tab" data-tab="search" onclick="switchTab('search')">🔍 Recherche</div>
         <div class="tab active" data-tab="inscrits" onclick="switchTab('inscrits')">📋 Liste d'attente <span id="cntIns"></span></div>
         <div class="tab" data-tab="ajournes" onclick="switchTab('ajournes')">⚠️ Ajournés <span id="cntAj"></span></div>
         <div class="tab" data-tab="calendrier" onclick="switchTab('calendrier');renderCalendrier()">📆 Calendrier <span id="cntEx"></span></div>
         <div class="tab" data-tab="resultats" onclick="switchTab('resultats')" id="tabResultats">📋 Résultats</div>
-        <div class="tab tab-admin" data-tab="places" onclick="switchTab('places')" id="tabPlaces" style="display:none">🗓️ Places</div>
         <div class="tab tab-admin" data-tab="stats" onclick="switchTab('stats')" id="tabStats" style="display:none">📊 Statistiques</div>
     </div>
     <div class="content">
         <div class="tab-content active" id="tab-inscrits">
+            <div class="moto-type-toggle" id="motoTypeToggleIns">
+                <button id="btnMotoTypeInsAll" class="moto-type-btn-all" onclick="setMotoTypeFilterIns('tous')" style="background:#3498db;color:white">Tous</button>
+                <button id="btnMotoTypeInsPlateau" onclick="setMotoTypeFilterIns('Plateau')">🟠 Plateau</button>
+                <button id="btnMotoTypeInsCircu" onclick="setMotoTypeFilterIns('Circulation')">🟢 Circulation</button>
+            </div>
             <div class="filters">
                 <input type="text" id="srcIns" placeholder="🔍 Rechercher nom / prénom..." oninput="renderInscrits()">
                 <select id="fltMoisIns" onchange="renderInscrits()"><option value="">Tous les mois</option></select>
@@ -293,6 +313,11 @@
             </tr></thead><tbody id="tbIns"></tbody></table></div>
         </div>
         <div class="tab-content" id="tab-ajournes">
+            <div class="moto-type-toggle" id="motoTypeToggleAj">
+                <button id="btnMotoTypeAjAll" onclick="setMotoTypeFilterAj('tous')" style="background:#3498db;color:white">Tous</button>
+                <button id="btnMotoTypeAjPlateau" onclick="setMotoTypeFilterAj('Plateau')">🟠 Plateau</button>
+                <button id="btnMotoTypeAjCircu" onclick="setMotoTypeFilterAj('Circulation')">🟢 Circulation</button>
+            </div>
             <div class="filters">
                 <input type="text" id="srcAj" placeholder="🔍 Rechercher nom / prénom..." oninput="renderAjournes()">
                 <select id="fltMoisAj" onchange="renderAjournes()"><option value="">Tous les mois</option></select>
@@ -318,9 +343,6 @@
         </div>
         <div class="tab-content" id="tab-stats">
             <div id="statsBox"><div class="loader">Chargement des statistiques...</div></div>
-        </div>
-        <div class="tab-content" id="tab-places">
-            <div id="placesBox"><div class="loader">Chargement des places...</div></div>
         </div>
         <div class="tab-content" id="tab-resultats">
             <div style="padding:10px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -357,8 +379,11 @@
 <script>
 let sb = null;
 let dataIns = [], dataAj = [], dataEx = [];
+let dataMotoIns = [], dataMotoAj = [], dataMotoEx = [], dataMotoHistorique = [];
+let motoTypeFilterIns = 'tous', motoTypeFilterAj = 'tous';
 let sortIns = { col: null, asc: true }, sortAj = { col: null, asc: true }, sortRes = { col: null, asc: true };
 let isAdmin = false;
+let currentMode = 'voitures';
 let calYear, calMonth; // calendrier
 const ADMIN_PWD = "admin2026";
 const MOIS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
@@ -379,17 +404,17 @@ async function connect(url, key) { try { sb = window.supabase.createClient(url, 
 function openAdminModal() { if (isAdmin) { exitAdmin(); return; } document.getElementById('adminModal').classList.add('show'); document.getElementById('adminPwd').value=''; document.getElementById('adminErr').style.display='none'; setTimeout(()=>document.getElementById('adminPwd').focus(),100); }
 function closeAdminModal() { document.getElementById('adminModal').classList.remove('show'); }
 function checkAdmin() { if (document.getElementById('adminPwd').value === ADMIN_PWD) { isAdmin=true; closeAdminModal(); document.getElementById('modeTag').textContent='ADMIN'; document.getElementById('modeTag').className='admin-tag'; document.getElementById('adminBtn').textContent='🔓 Quitter Admin'; document.getElementById('arcadeResetBtn').style.display=''; document.getElementById('tabStats').style.display=''; document.getElementById('tabPlaces').style.display=''; loadStats(); loadPlaces(); } else { const e=document.getElementById('adminErr'); e.textContent='Mot de passe incorrect'; e.style.display='block'; } }
-function exitAdmin() { isAdmin=false; document.getElementById('modeTag').textContent='LECTURE SEULE'; document.getElementById('modeTag').className='readonly-tag'; document.getElementById('adminBtn').textContent='🔐 Admin'; document.getElementById('arcadeResetBtn').style.display='none'; document.getElementById('tabStats').style.display='none'; document.getElementById('tabPlaces').style.display='none'; switchTab('inscrits'); }
+function exitAdmin() { isAdmin=false; document.getElementById('modeTag').textContent='LECTURE SEULE'; document.getElementById('modeTag').className='readonly-tag'; document.getElementById('adminBtn').textContent='🔐 Admin'; document.getElementById('arcadeResetBtn').style.display='none'; document.getElementById('tabStats').style.display='none'; switchTab('inscrits'); }
 function resetScoresArcade() { if (!isAdmin) return; if (confirm('🎮 Réinitialiser tous les scores des jeux ?\n\nCette action est irréversible !')) { localStorage.removeItem('gamepadBest'); localStorage.removeItem('eggScore'); alert('✅ Scores réinitialisés !'); location.reload(); } }
 
 // TABS
-function switchTab(name) { if ((name==='stats'||name==='places')&&!isAdmin) return; document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name)); document.querySelectorAll('.tab-content').forEach(c=>c.classList.toggle('active',c.id==='tab-'+name)); }
+function switchTab(name) { if (name==='stats'&&!isAdmin) return; document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name)); document.querySelectorAll('.tab-content').forEach(c=>c.classList.toggle('active',c.id==='tab-'+name)); }
 
 // SORT
 function doSort(target, col) { if (target==='ins') { sortIns.asc = sortIns.col===col ? !sortIns.asc : true; sortIns.col=col; renderInscrits(); } else { sortAj.asc = sortAj.col===col ? !sortAj.asc : true; sortAj.col=col; renderAjournes(); } }
 
 // LOAD ALL
-async function refreshAll() { setStatus('','⏳ Actualisation...'); try { await Promise.all([loadInscrits(), loadAjournes(), loadExamens(), loadResultats()]); if (isAdmin) { loadStats(); loadPlaces(); } setStatus('ok','🟢 '+new Date().toLocaleTimeString('fr-FR')); saveCache(); document.getElementById('offlineBanner').classList.remove('show'); } catch(e) { if (loadCache()) { setStatus('err','🟠 Hors-ligne'); } else { setStatus('err','🔴 '+e.message); } } }
+async function refreshAll() { setStatus('','⏳ Actualisation...'); try { await Promise.all([loadInscrits(), loadAjournes(), loadExamens(), loadResultats(), loadMotoInscrits(), loadMotoAjournes(), loadMotoExamens(), loadMotoHistorique()]); if (isAdmin) { loadStats(); } setStatus('ok','🟢 '+new Date().toLocaleTimeString('fr-FR')); saveCache(); document.getElementById('offlineBanner').classList.remove('show'); document.getElementById('modeToggle').style.display='block'; } catch(e) { if (loadCache()) { setStatus('err','🟠 Hors-ligne'); } else { setStatus('err','🔴 '+e.message); } } }
 
 // === MODE HORS-LIGNE ===
 function saveCache() {
@@ -399,6 +424,10 @@ function saveCache() {
             ajournes: dataAj,
             examens: dataEx,
             resultats: dataResultats || [],
+            moto_ins: dataMotoIns,
+            moto_aj: dataMotoAj,
+            moto_ex: dataMotoEx,
+            moto_historique: dataMotoHistorique,
             date: new Date().toLocaleString('fr-FR')
         };
         localStorage.setItem('offline_cache', JSON.stringify(cache));
@@ -416,13 +445,18 @@ function loadCache() {
         dataAj = cache.ajournes || [];
         dataEx = cache.examens || [];
         dataResultats = cache.resultats || [];
-        
+        dataMotoIns = cache.moto_ins || [];
+        dataMotoAj = cache.moto_aj || [];
+        dataMotoEx = cache.moto_ex || [];
+        dataMotoHistorique = cache.moto_historique || [];
+
         fillMoisSel('fltMoisIns', dataIns.map(function(e){ return e.mois; }));
         fillMoisSel('fltMoisAj', dataAj.map(function(e){ return e.mois; }));
         document.getElementById('cntIns').textContent = '(' + dataIns.length + ')';
         document.getElementById('cntAj').textContent = '(' + dataAj.length + ')';
         document.getElementById('cntEx').textContent = '(' + dataEx.length + ')';
-        
+        document.getElementById('modeToggle').style.display = 'block';
+
         renderInscrits();
         renderAjournes();
         renderExamens();
@@ -610,8 +644,120 @@ async function loadExamens() {
     renderExamens();
 }
 
+// ===== MODE VOITURES / MOTOS =====
+function switchMode(mode) {
+    currentMode = mode;
+    document.getElementById('btnModeVoitures').className = mode === 'voitures' ? 'mode-btn-active' : '';
+    document.getElementById('btnModeVoitures').style.background = mode === 'voitures' ? '' : '#34495e';
+    document.getElementById('btnModeMotos').className = mode === 'motos' ? 'mode-btn-motos-active' : '';
+    document.getElementById('btnModeMotos').style.background = mode === 'motos' ? '' : '#34495e';
+    // Mettre à jour les compteurs des onglets
+    if (mode === 'voitures') {
+        document.getElementById('cntIns').textContent = '(' + dataIns.length + ')';
+        document.getElementById('cntAj').textContent = '(' + dataAj.length + ')';
+        document.getElementById('cntEx').textContent = '(' + dataEx.length + ')';
+    } else {
+        document.getElementById('cntIns').textContent = '(' + dataMotoIns.length + ')';
+        document.getElementById('cntAj').textContent = '(' + dataMotoAj.length + ')';
+        document.getElementById('cntEx').textContent = '(' + dataMotoEx.length + ')';
+    }
+    // Afficher/masquer les filtres type moto
+    var isMoto = mode === 'motos';
+    document.getElementById('motoTypeToggleIns').style.display = isMoto ? '' : 'none';
+    document.getElementById('motoTypeToggleAj').style.display = isMoto ? '' : 'none';
+    if (!isMoto) { motoTypeFilterIns = 'tous'; motoTypeFilterAj = 'tous'; }
+    // Re-rendre l'onglet actif
+    var activeTab = document.querySelector('.tab.active');
+    if (!activeTab) return;
+    var tabName = activeTab.dataset.tab;
+    if (tabName === 'inscrits') renderInscrits();
+    else if (tabName === 'ajournes') renderAjournes();
+    else if (tabName === 'calendrier') renderCalendrier();
+    else if (tabName === 'resultats') renderResultats();
+    else if (tabName === 'stats' && isAdmin) loadStats();
+}
+
+function setMotoTypeFilterIns(type) {
+    motoTypeFilterIns = type;
+    var btns = {'tous': 'btnMotoTypeInsAll', 'Plateau': 'btnMotoTypeInsPlateau', 'Circulation': 'btnMotoTypeInsCircu'};
+    var colors = {'tous': '#3498db', 'Plateau': '#e67e22', 'Circulation': '#e91e63'};
+    Object.keys(btns).forEach(function(k) {
+        var el = document.getElementById(btns[k]);
+        if (el) { el.style.background = k === type ? colors[k] : '#bdc3c7'; }
+    });
+    renderInscrits();
+}
+
+function setMotoTypeFilterAj(type) {
+    motoTypeFilterAj = type;
+    var btns = {'tous': 'btnMotoTypeAjAll', 'Plateau': 'btnMotoTypeAjPlateau', 'Circulation': 'btnMotoTypeAjCircu'};
+    var colors = {'tous': '#3498db', 'Plateau': '#e67e22', 'Circulation': '#e91e63'};
+    Object.keys(btns).forEach(function(k) {
+        var el = document.getElementById(btns[k]);
+        if (el) { el.style.background = k === type ? colors[k] : '#bdc3c7'; }
+    });
+    renderAjournes();
+}
+
+// LOAD MOTO
+async function loadMotoInscrits() {
+    try {
+        var {data, error} = await sb.from('eleves_moto').select('*').order('created_at', {ascending: false});
+        if (error) throw error;
+        dataMotoIns = data || [];
+    } catch(e) { console.log('loadMotoInscrits err', e); dataMotoIns = []; }
+}
+
+async function loadMotoAjournes() {
+    try {
+        var {data, error} = await sb.from('ajournes_moto').select('*').order('created_at', {ascending: false});
+        if (error) throw error;
+        dataMotoAj = data || [];
+    } catch(e) { console.log('loadMotoAjournes err', e); dataMotoAj = []; }
+}
+
+async function loadMotoHistorique() {
+    try {
+        var {data, error} = await sb.from('historique_moto').select('*').order('created_at', {ascending: false});
+        if (error) throw error;
+        dataMotoHistorique = data || [];
+    } catch(e) { console.log('loadMotoHistorique err', e); dataMotoHistorique = []; }
+}
+
+async function loadMotoExamens() {
+    try {
+        var {data: examens, error} = await sb.from('examens_moto').select('*').eq('statut', 'programme');
+        if (error) throw error;
+        var exIds = (examens || []).map(function(e) { return e.id; });
+        var allInsc = [];
+        if (exIds.length) {
+            var {data} = await sb.from('inscriptions_examens_moto').select('*').in('examen_id', exIds);
+            allInsc = data || [];
+        }
+        var eIds = [...new Set(allInsc.filter(function(i) { return i.eleve_id > 0; }).map(function(i) { return i.eleve_id; }))];
+        var aIds = [...new Set(allInsc.filter(function(i) { return i.eleve_id < 0; }).map(function(i) { return Math.abs(i.eleve_id); }))];
+        var eMap = {}, aMap = {};
+        if (eIds.length) { var {data: ed} = await sb.from('eleves_moto').select('id,nom,prenom').in('id', eIds); (ed||[]).forEach(function(e) { eMap[e.id] = e; }); }
+        if (aIds.length) { var {data: ad} = await sb.from('ajournes_moto').select('id,nom,prenom').in('id', aIds); (ad||[]).forEach(function(a) { aMap[a.id] = a; }); }
+        dataMotoEx = (examens || []).map(function(ex) {
+            var ins = allInsc.filter(function(i) { return i.examen_id === ex.id; });
+            var cands = ins.map(function(i) {
+                if (i.eleve_id > 0) { var e = eMap[i.eleve_id]; return e ? Object.assign({}, e, {src: 'élève'}) : null; }
+                else { var a = aMap[Math.abs(i.eleve_id)]; return a ? Object.assign({}, a, {src: 'ajourné'}) : null; }
+            }).filter(Boolean);
+            return Object.assign({}, ex, {candidats: cands});
+        }).sort(function(a, b) { return parseDateFR(a.date) - parseDateFR(b.date); });
+    } catch(e) { console.log('loadMotoExamens err', e); dataMotoEx = []; }
+}
+
 // RENDER INSCRITS
 function renderInscrits() {
+    if (currentMode === 'motos') { renderMotoInscrits(); return; }
+    // Restaurer le thead voitures si besoin (motos a 5 colonnes, voitures en a 6)
+    var thIns = document.querySelector('#tab-inscrits .table-wrap table thead tr');
+    if (thIns && thIns.cells.length < 6) {
+        thIns.innerHTML = '<th onclick="doSort(\'ins\',\'nom\')">Nom <span class="arrow">▲▼</span></th><th onclick="doSort(\'ins\',\'prenom\')">Prénom <span class="arrow">▲▼</span></th><th onclick="doSort(\'ins\',\'verifs\')">Vérifs <span class="arrow">▲▼</span></th><th onclick="doSort(\'ins\',\'mois\')">Mois <span class="arrow">▲▼</span></th><th onclick="doSort(\'ins\',\'date_exam\')">Date exam <span class="arrow">▲▼</span></th><th>Notes</th>';
+    }
     const s=document.getElementById('srcIns').value.toLowerCase().trim(), m=document.getElementById('fltMoisIns').value;
     let f = dataIns.filter(e => { if (s && !(e.nom||'').toLowerCase().includes(s) && !(e.prenom||'').toLowerCase().includes(s)) return false; if (m && e.mois!==m) return false; return true; });
     if (sortIns.col) f.sort((a,b)=>{ if(sortIns.col==='mois') return sortIns.asc?moisKey(a.mois)-moisKey(b.mois):moisKey(b.mois)-moisKey(a.mois); const va=(a[sortIns.col]||'').toString().toLowerCase(),vb=(b[sortIns.col]||'').toString().toLowerCase(); return sortIns.asc?va.localeCompare(vb):vb.localeCompare(va); });
@@ -629,8 +775,36 @@ function renderInscrits() {
     }).join('');
 }
 
+function renderMotoInscrits() {
+    var s = document.getElementById('srcIns').value.toLowerCase().trim();
+    document.getElementById('fltMoisIns').style.display = 'none';
+    var f = dataMotoIns.filter(function(e) {
+        if (s && !(e.nom||'').toLowerCase().includes(s) && !(e.prenom||'').toLowerCase().includes(s)) return false;
+        if (motoTypeFilterIns !== 'tous' && (e.type_moto || 'Plateau') !== motoTypeFilterIns) return false;
+        return true;
+    });
+    document.getElementById('cntFltIns').textContent = f.length + ' / ' + dataMotoIns.length;
+    var table = document.querySelector('#tab-inscrits .table-wrap table');
+    if (table) {
+        table.querySelector('thead tr').innerHTML = '<th>Nom</th><th>Prénom</th><th>Type</th><th>Date d\'ajout</th><th>Notes</th>';
+    }
+    document.getElementById('tbIns').innerHTML = f.map(function(e) {
+        var tm = e.type_moto || 'Plateau';
+        var cls = tm === 'Circulation' ? 'moto-circulation' : 'moto-plateau';
+        var badge = tm === 'Circulation' ? '<span class="badge-circulation">Circulation</span>' : '<span class="badge-plateau">Plateau</span>';
+        return '<tr class="'+cls+'"><td><strong>' + esc(e.nom||'') + '</strong></td><td>' + esc(e.prenom||'') + '</td><td>' + badge + '</td><td>' + esc(e.created_at||'') + '</td><td>' + esc(e.note||'') + '</td></tr>';
+    }).join('');
+    document.getElementById('fltMoisIns').style.display = '';
+}
+
 // RENDER AJOURNES
 function renderAjournes() {
+    if (currentMode === 'motos') { renderMotoAjournes(); return; }
+    // Restaurer le thead voitures si besoin
+    var thAj = document.querySelector('#tab-ajournes .table-wrap table thead tr');
+    if (thAj && thAj.cells.length < 7) {
+        thAj.innerHTML = '<th onclick="doSort(\'aj\',\'nom\')">Nom <span class="arrow">▲▼</span></th><th onclick="doSort(\'aj\',\'prenom\')">Prénom <span class="arrow">▲▼</span></th><th onclick="doSort(\'aj\',\'presentation\')">Présentation <span class="arrow">▲▼</span></th><th onclick="doSort(\'aj\',\'niveau\')">Niveau <span class="arrow">▲▼</span></th><th onclick="doSort(\'aj\',\'mois_echec\')">Mois échec <span class="arrow">▲▼</span></th><th onclick="doSort(\'aj\',\'date_echec\')">Date échec <span class="arrow">▲▼</span></th><th onclick="doSort(\'aj\',\'mois\')">Nouveau mois <span class="arrow">▲▼</span></th><th onclick="doSort(\'aj\',\'date\')">Nouvelle date <span class="arrow">▲▼</span></th><th>Notes</th>';
+    }
     const s=document.getElementById('srcAj').value.toLowerCase().trim(), m=document.getElementById('fltMoisAj').value;
     let f = dataAj.filter(e => { if (s && !(e.nom||'').toLowerCase().includes(s) && !(e.prenom||'').toLowerCase().includes(s)) return false; if (m && e.mois!==m) return false; return true; });
     if (sortAj.col) f.sort((a,b)=>{ if(['mois','mois_echec'].includes(sortAj.col)) return sortAj.asc?moisKey(a[sortAj.col])-moisKey(b[sortAj.col]):moisKey(b[sortAj.col])-moisKey(a[sortAj.col]); const va=(a[sortAj.col]||'').toString().toLowerCase(),vb=(b[sortAj.col]||'').toString().toLowerCase(); return sortAj.asc?va.localeCompare(vb):vb.localeCompare(va); });
@@ -647,23 +821,49 @@ function renderAjournes() {
     }).join('');
 }
 
+function renderMotoAjournes() {
+    var s = document.getElementById('srcAj').value.toLowerCase().trim();
+    document.getElementById('fltMoisAj').style.display = 'none';
+    var f = dataMotoAj.filter(function(e) {
+        if (s && !(e.nom||'').toLowerCase().includes(s) && !(e.prenom||'').toLowerCase().includes(s)) return false;
+        if (motoTypeFilterAj !== 'tous' && (e.type_moto || 'Plateau') !== motoTypeFilterAj) return false;
+        return true;
+    });
+    document.getElementById('cntFltAj').textContent = f.length + ' / ' + dataMotoAj.length;
+    var table = document.querySelector('#tab-ajournes .table-wrap table');
+    if (table) {
+        table.querySelector('thead tr').innerHTML = '<th>Nom</th><th>Prénom</th><th>Type</th><th>Mois échec</th><th>Date échec</th><th>Notes</th>';
+    }
+    document.getElementById('tbAj').innerHTML = f.map(function(e) {
+        var tm = e.type_moto || 'Plateau';
+        var cls = tm === 'Circulation' ? 'moto-circulation' : 'moto-plateau';
+        var badge = tm === 'Circulation' ? '<span class="badge-circulation">Circulation</span>' : '<span class="badge-plateau">Plateau</span>';
+        return '<tr class="'+cls+'"><td><strong>' + esc(e.nom||'') + '</strong></td><td>' + esc(e.prenom||'') + '</td><td>' + badge + '</td><td>' + esc(e.mois_echec||'') + '</td><td>' + esc(e.date_echec||'') + '</td><td>' + esc(e.note||'') + '</td></tr>';
+    }).join('');
+    document.getElementById('fltMoisAj').style.display = '';
+}
+
 // RENDER EXAMENS
 function renderExamens() {
     const box = document.getElementById('examBox');
-    if (!dataEx.length) { box.innerHTML='<p style="text-align:center;color:#95a5a6;padding:30px">Aucun examen programmé</p>'; return; }
-    box.innerHTML = dataEx.map(ex => {
+    var source = currentMode === 'motos' ? dataMotoEx : dataEx;
+    if (!source.length) { box.innerHTML='<p style="text-align:center;color:#95a5a6;padding:30px">Aucun examen programmé</p>'; return; }
+    box.innerHTML = source.map(ex => {
         const nb=ex.candidats.length, np=ex.nb_places;
+        const isMoto = currentMode === 'motos';
+        const typeLabel = isMoto && ex.type_examen ? '🏍️ '+esc(ex.type_examen)+' — ' : '📅 ';
         const candsHtml = nb===0 ? '<p class="no-candidat">Aucun candidat inscrit</p>' :
             '<div class="candidats-grid">'+ex.candidats.map((c,i) => {
                 const src = c.src==='ajourné' ? ' <span style="color:#e67e22;font-size:0.8em">(Aj)</span>' : '';
                 return '<div class="candidat-item"><span>'+(i+1)+'. <strong>'+esc(c.nom)+'</strong> '+esc(c.prenom)+src+'</span></div>';
             }).join('')+'</div>';
-        return '<div class="exam-card"><div class="exam-header"><h3>📅 '+esc(ex.date)+(ex.horaire?' — '+esc(ex.horaire):'')+'</h3><span class="badge '+(nb>=np?'badge-no':'badge-ok')+'">'+nb+' / '+np+' places</span></div><div class="exam-meta">'+(ex.lieu?'<span>📍 '+esc(ex.lieu)+'</span>':'')+'<span>👥 '+nb+' candidat'+(nb>1?'s':'')+'</span></div>'+candsHtml+'</div>';
+        return '<div class="exam-card"><div class="exam-header"><h3>'+typeLabel+esc(ex.date)+(ex.horaire?' — '+esc(ex.horaire):'')+'</h3><span class="badge '+(nb>=np?'badge-no':'badge-ok')+'">'+nb+' / '+np+' places</span></div><div class="exam-meta">'+(ex.lieu?'<span>📍 '+esc(ex.lieu)+'</span>':'')+'<span>👥 '+nb+' candidat'+(nb>1?'s':'')+'</span></div>'+candsHtml+'</div>';
     }).join('');
 }
 
 // LOAD STATS
 async function loadStats() {
+    if (currentMode === 'motos') { loadStatsMoto(); return; }
     const box = document.getElementById('statsBox');
     box.innerHTML = '<div class="loader">Chargement des statistiques...</div>';
     try {
@@ -830,6 +1030,78 @@ async function loadStats() {
     } catch(e) { box.innerHTML='<p style="color:#e74c3c;padding:20px">Erreur : '+e.message+'</p>'; }
 }
 
+// LOAD STATS MOTOS
+async function loadStatsMoto() {
+    var box = document.getElementById('statsBox');
+    box.innerHTML = '<div class="loader">Chargement des statistiques motos...</div>';
+    try {
+        var nbIns = dataMotoIns.length;
+        var nbAj = dataMotoAj.length;
+        var nbInsPlateau = dataMotoIns.filter(function(e) { return (e.type_moto||'Plateau') === 'Plateau'; }).length;
+        var nbInsCircu = dataMotoIns.filter(function(e) { return (e.type_moto||'Plateau') === 'Circulation'; }).length;
+        var nbAjPlateau = dataMotoAj.filter(function(e) { return (e.type_moto||'Plateau') === 'Plateau'; }).length;
+        var nbAjCircu = dataMotoAj.filter(function(e) { return (e.type_moto||'Plateau') === 'Circulation'; }).length;
+        var histPlatReussi = dataMotoHistorique.filter(function(h) { return h.type_exam === 'Plateau' && h.resultat === 'Réussi'; }).length;
+        var histPlatEchec = dataMotoHistorique.filter(function(h) { return h.type_exam === 'Plateau' && h.resultat !== 'Réussi'; }).length;
+        var histCircReussi = dataMotoHistorique.filter(function(h) { return h.type_exam === 'Circulation' && h.resultat === 'Réussi'; }).length;
+        var histCircEchec = dataMotoHistorique.filter(function(h) { return h.type_exam === 'Circulation' && h.resultat !== 'Réussi'; }).length;
+
+        // Ajournés par mois d'échec
+        var parMoisEchec = {};
+        dataMotoAj.forEach(function(aj) {
+            var m = (aj.mois_echec || '').trim();
+            if (m) parMoisEchec[m] = (parMoisEchec[m] || 0) + 1;
+        });
+        var moisEchecTries = Object.entries(parMoisEchec).sort(function(a, b) { return moisKey(b[0]) - moisKey(a[0]); });
+
+        var html = '<div class="cards-row">';
+        html += '<div class="mini-card" style="background:#9b59b6"><div class="mc-val">' + nbIns + '</div><div class="mc-lbl">Inscrits moto</div></div>';
+        html += '<div class="mini-card" style="background:#e67e22"><div class="mc-val">' + nbInsPlateau + '</div><div class="mc-lbl">🟠 Plateau</div></div>';
+        html += '<div class="mini-card" style="background:#27ae60"><div class="mc-val">' + nbInsCircu + '</div><div class="mc-lbl">🟢 Circulation</div></div>';
+        html += '<div class="mini-card" style="background:#c0392b"><div class="mc-val">' + nbAj + '</div><div class="mc-lbl">Ajournés moto</div></div>';
+        html += '</div>';
+
+        html += '<div class="stats-grid">';
+
+        // Répartition inscrits/ajournés par type
+        html += '<div class="stat-card"><h3>👥 Répartition par type</h3>';
+        html += '<div class="stat-row"><span>🟠 Inscrits Plateau</span><span class="val" style="color:#e67e22">' + nbInsPlateau + '</span></div>';
+        html += '<div class="stat-row"><span>🟢 Inscrits Circulation</span><span class="val" style="color:#27ae60">' + nbInsCircu + '</span></div>';
+        html += '<div class="stat-row"><span>⚠️ Ajournés Plateau</span><span class="val">' + nbAjPlateau + '</span></div>';
+        html += '<div class="stat-row"><span>⚠️ Ajournés Circulation</span><span class="val">' + nbAjCircu + '</span></div>';
+        html += '</div>';
+
+        // Résultats historique
+        html += '<div class="stat-card"><h3>📊 Résultats historique</h3>';
+        html += '<div class="stat-row"><span>🟠 Plateau réussis</span><span class="val" style="color:#27ae60">' + histPlatReussi + '</span></div>';
+        html += '<div class="stat-row"><span>🟠 Plateau échecs</span><span class="val" style="color:#e74c3c">' + histPlatEchec + '</span></div>';
+        html += '<div class="stat-row"><span>🟢 Circulation réussis</span><span class="val" style="color:#27ae60">' + histCircReussi + '</span></div>';
+        html += '<div class="stat-row"><span>🟢 Circulation échecs</span><span class="val" style="color:#e74c3c">' + histCircEchec + '</span></div>';
+        html += '</div>';
+
+        // Ajournés par mois d'échec
+        html += '<div class="stat-card"><h3>📅 Ajournés par mois d\'échec</h3>';
+        if (moisEchecTries.length) {
+            moisEchecTries.slice(0, 8).forEach(function(x) {
+                html += '<div class="stat-row"><span>' + esc(x[0]) + '</span><span class="val">' + x[1] + '</span></div>';
+            });
+        } else {
+            html += '<div class="stat-row"><span style="color:#95a5a6;font-style:italic">Aucun ajourné</span></div>';
+        }
+        html += '</div>';
+
+        // Candidats par examen
+        var totCandidats = dataMotoEx.reduce(function(acc, ex) { return acc + (ex.candidats ? ex.candidats.length : 0); }, 0);
+        html += '<div class="stat-card"><h3>📝 Examens programmés</h3>';
+        html += '<div class="stat-row"><span>Nombre d\'examens</span><span class="val">' + dataMotoEx.length + '</span></div>';
+        html += '<div class="stat-row"><span>Total candidats inscrits</span><span class="val">' + totCandidats + '</span></div>';
+        html += '</div>';
+
+        html += '</div>';
+        box.innerHTML = html;
+    } catch(e) { box.innerHTML = '<p style="color:#e74c3c;padding:20px">Erreur : ' + e.message + '</p>'; }
+}
+
 // LOAD PLACES
 async function loadPlaces() {
     const box = document.getElementById('placesBox');
@@ -882,6 +1154,7 @@ async function loadResultats() {
     } catch(e) { console.log('loadResultats err', e); }
 }
 function renderResultats() {
+    if (currentMode === 'motos') { renderResultatsMoto(); return; }
     var search = (document.getElementById('searchResultats').value || '').trim().toLowerCase();
     var anneeEl = document.getElementById('fltResultatsAnnee');
     var anneeFiltre = anneeEl ? anneeEl.value : '';
@@ -994,6 +1267,62 @@ function toggleResCard(card) {
 
 function doSortRes(col) { sortRes.asc = sortRes.col===col ? !sortRes.asc : true; sortRes.col=col; renderResultats(); }
 
+function renderResultatsMoto() {
+    var grid = document.getElementById('resCardsGrid');
+    var anneeEl = document.getElementById('fltResultatsAnnee');
+    anneeEl.style.display = 'none';
+    var parMois = {};
+    dataMotoHistorique.forEach(function(h) {
+        var m = (h.mois_exam || '').trim() || 'Sans date';
+        if (!parMois[m]) parMois[m] = [];
+        parMois[m].push(h);
+    });
+    var moisTries = Object.keys(parMois).sort(function(a, b) { return moisKey(b) - moisKey(a); });
+    if (!moisTries.length) {
+        grid.innerHTML = '<p style="text-align:center;color:#95a5a6;padding:40px;grid-column:1/-1">Aucun résultat moto enregistré</p>';
+        document.getElementById('cntResultats').textContent = '';
+        anneeEl.style.display = '';
+        return;
+    }
+    var html = '';
+    moisTries.forEach(function(mois) {
+        var entrees = parMois[mois];
+        var reussis = entrees.filter(function(e) { return e.resultat === 'Réussi'; });
+        var echecs = entrees.filter(function(e) { return e.resultat !== 'Réussi'; });
+        var listHtml = '';
+        entrees.slice().sort(function(a, b) { return (a.nom||'').localeCompare(b.nom||''); }).forEach(function(h) {
+            var isOk = h.resultat === 'Réussi';
+            var icon = isOk ? '✅' : '❌';
+            var cls = isOk ? 'res-eleve-ok' : 'res-eleve-ko';
+            var typeCol = h.type_exam === 'Plateau' ? '#e67e22' : '#e91e63';
+            listHtml += '<div class="res-eleve-item ' + cls + '">'
+                + '<span class="res-eleve-name">' + icon + ' ' + esc(h.nom||'') + ' ' + esc(h.prenom||'') + '</span>'
+                + '<span style="font-size:0.75em;color:' + typeCol + ';margin:0 5px">' + esc(h.type_exam||'') + '</span>'
+                + (h.date_exam ? '<span class="res-eleve-meta">' + esc(h.date_exam) + '</span>' : '')
+                + '</div>';
+        });
+        var pct = entrees.length ? Math.round(reussis.length * 100 / entrees.length) : 0;
+        html += '<div class="res-month-card" onclick="toggleResCard(this)">'
+            + '<div class="res-card-body">'
+            + '<div class="res-card-header">'
+            + '<span class="res-card-mois">🏍️ ' + esc(mois) + '</span>'
+            + '<span class="res-card-toggle">▶</span>'
+            + '</div>'
+            + '<div class="res-card-stats">'
+            + (reussis.length ? '<span class="res-card-taux" style="color:#27ae60">✅ ' + reussis.length + '</span>' : '')
+            + (echecs.length ? '<span class="res-card-counts" style="color:#e74c3c;margin-left:8px">❌ ' + echecs.length + '</span>' : '')
+            + '</div>'
+            + '<div class="res-card-bar-bg"><div class="res-card-bar-fill" style="width:' + pct + '%;background:#27ae60"></div></div>'
+            + '</div>'
+            + '<div class="res-eleves-list">' + listHtml + '</div>'
+            + '<div class="res-card-shadow"></div>'
+            + '</div>';
+    });
+    grid.innerHTML = html;
+    document.getElementById('cntResultats').textContent = dataMotoHistorique.length + ' résultat(s) moto sur ' + moisTries.length + ' période(s)';
+    anneeEl.style.display = '';
+}
+
 // GLOBAL SEARCH — clickable results
 function goToEleve(nom, prenom, tab) {
     switchTab(tab);
@@ -1013,16 +1342,22 @@ function renderGlobalSearch() {
         return;
     }
     
-    // Chercher dans inscrits
+    // Chercher dans inscrits (voitures + motos)
     var rIns = dataIns.filter(function(e) {
         return (e.nom||'').toLowerCase().indexOf(s) === 0 || (e.prenom||'').toLowerCase().indexOf(s) === 0;
     });
-    
-    // Chercher dans ajournés
+    var rMotoIns = dataMotoIns.filter(function(e) {
+        return (e.nom||'').toLowerCase().indexOf(s) === 0 || (e.prenom||'').toLowerCase().indexOf(s) === 0;
+    });
+
+    // Chercher dans ajournés (voitures + motos)
     var rAj = dataAj.filter(function(e) {
         return (e.nom||'').toLowerCase().indexOf(s) === 0 || (e.prenom||'').toLowerCase().indexOf(s) === 0;
     });
-    
+    var rMotoAj = dataMotoAj.filter(function(e) {
+        return (e.nom||'').toLowerCase().indexOf(s) === 0 || (e.prenom||'').toLowerCase().indexOf(s) === 0;
+    });
+
     // Chercher dans examens (candidats)
     var rEx = [];
     dataEx.forEach(function(ex) {
@@ -1031,23 +1366,49 @@ function renderGlobalSearch() {
         });
         if (found.length) rEx.push({exam: ex, candidats: found});
     });
+    dataMotoEx.forEach(function(ex) {
+        var found = (ex.candidats||[]).filter(function(c) {
+            return (c.nom||'').toLowerCase().indexOf(s) === 0 || (c.prenom||'').toLowerCase().indexOf(s) === 0;
+        });
+        if (found.length) rEx.push({exam: ex, candidats: found, isMoto: true});
+    });
     
     // Chercher dans résultats
     var rRes = dataResultats.filter(function(r) {
         return (r.nom||'').toLowerCase().indexOf(s) === 0 || (r.prenom||'').toLowerCase().indexOf(s) === 0;
     });
     
-    var totalResults = rIns.length + rAj.length + rEx.length + rRes.length;
+    var totalResults = rIns.length + rMotoIns.length + rAj.length + rMotoAj.length + rEx.length + rRes.length;
     document.getElementById('cntGlobal').textContent = totalResults + ' résultat(s)';
-    
+
     if (totalResults === 0) {
         box.innerHTML = '<p style="text-align:center;color:#95a5a6;padding:30px">Aucun résultat pour "' + esc(s) + '"</p>';
         return;
     }
-    
+
     var html = '';
-    
-    // Section Inscrits
+
+    // Section Inscrits motos
+    if (rMotoIns.length) {
+        html += '<div style="margin-bottom:15px"><h3 style="margin:10px 0;font-size:1em;color:#9b59b6">🏍️ Inscrits motos (' + rMotoIns.length + ')</h3>';
+        html += '<div class="table-wrap"><table><thead><tr><th>Nom</th><th>Prénom</th><th>Téléphone</th><th>Date inscription</th></tr></thead><tbody>';
+        rMotoIns.forEach(function(e) {
+            html += '<tr><td><strong>' + esc(e.nom||'') + '</strong></td><td>' + esc(e.prenom||'') + '</td><td>' + esc(e.telephone||'') + '</td><td>' + esc(e.date_inscription||'') + '</td></tr>';
+        });
+        html += '</tbody></table></div></div>';
+    }
+
+    // Section Ajournés motos
+    if (rMotoAj.length) {
+        html += '<div style="margin-bottom:15px"><h3 style="margin:10px 0;font-size:1em;color:#9b59b6">🏍️ Ajournés motos (' + rMotoAj.length + ')</h3>';
+        html += '<div class="table-wrap"><table><thead><tr><th>Nom</th><th>Prénom</th><th>Mois échec</th><th>Date échec</th></tr></thead><tbody>';
+        rMotoAj.forEach(function(e) {
+            html += '<tr><td><strong>' + esc(e.nom||'') + '</strong></td><td>' + esc(e.prenom||'') + '</td><td>' + esc(e.mois_echec||'') + '</td><td>' + esc(e.date_echec||'') + '</td></tr>';
+        });
+        html += '</tbody></table></div></div>';
+    }
+
+    // Section Inscrits voitures
     if (rIns.length) {
         html += '<div style="margin-bottom:15px"><h3 style="margin:10px 0;font-size:1em;color:#27ae60">📋 Liste d\'attente (' + rIns.length + ')</h3>';
         html += '<div class="table-wrap"><table><thead><tr><th>Nom</th><th>Prénom</th><th>Mois</th><th>Date exam</th><th>Notes</th><th></th></tr></thead><tbody>';
@@ -1078,8 +1439,9 @@ function renderGlobalSearch() {
     if (rEx.length) {
         html += '<div style="margin-bottom:15px"><h3 style="margin:10px 0;font-size:1em;color:#3498db">📝 Examens (' + rEx.length + ')</h3>';
         rEx.forEach(function(r) {
+            var typeLabel = (r.isMoto && r.exam.type_examen) ? '🏍️ ' + esc(r.exam.type_examen) + ' — ' : '📅 ';
             html += '<div class="exam-card" style="border-left-color:#3498db;padding:12px;margin-bottom:8px">';
-            html += '<strong>📅 ' + esc(r.exam.date) + (r.exam.horaire ? ' — ' + esc(r.exam.horaire) : '') + '</strong>';
+            html += '<strong>' + typeLabel + esc(r.exam.date) + (r.exam.horaire ? ' — ' + esc(r.exam.horaire) : '') + '</strong>';
             if (r.exam.lieu) html += ' <span style="color:#7f8c8d;font-size:0.85em">📍 ' + esc(r.exam.lieu) + '</span>';
             html += '<div style="margin-top:6px">';
             r.candidats.forEach(function(c) {
@@ -1117,18 +1479,22 @@ function renderCalendrier() {
     var JOURS=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
     var title=MOIS[calMonth]+' '+calYear;
     document.getElementById('calTitle').textContent='📆 '+title;
-    
+
     // Premier jour du mois (0=dim, 1=lun, etc.) — convertir en lundi=0
     var firstDay=new Date(calYear,calMonth,1).getDay();
     firstDay = firstDay===0 ? 6 : firstDay-1; // Lundi = 0
     var daysInMonth=new Date(calYear,calMonth+1,0).getDate();
     var daysInPrev=new Date(calYear,calMonth,0).getDate();
-    
+
     var today=new Date(); today.setHours(0,0,0,0);
-    
+
+    // Choisir la source selon le mode
+    var sourceEx = currentMode === 'motos' ? dataMotoEx : dataEx;
+    var sourceResultats = currentMode === 'motos' ? [] : (dataResultats || []);
+
     // Indexer les examens par jour
     var examsByDay={};
-    if(dataEx) dataEx.forEach(function(ex){
+    if(sourceEx) sourceEx.forEach(function(ex){
         try{
             var p=ex.date.split('/');
             var d=new Date(p[2],p[1]-1,p[0]);
@@ -1141,7 +1507,7 @@ function renderCalendrier() {
     });
     
     // Indexer les résultats (examens passés) par date d'examen
-    if(dataResultats) dataResultats.forEach(function(r){
+    if(sourceResultats) sourceResultats.forEach(function(r){
         try{
             if(!r.date_examen) return;
             var p=r.date_examen.split('/');
@@ -1212,16 +1578,18 @@ function renderCalendrier() {
 }
 
 function calShowExam(exId) {
-    var ex = dataEx.find(function(e){ return e.id===exId; });
+    var source = currentMode === 'motos' ? dataMotoEx : dataEx;
+    var ex = source.find(function(e){ return e.id===exId; });
     if (!ex) return;
     var nb = ex.candidats ? ex.candidats.length : 0;
     var h = ex.horaire ? ' — ' + esc(ex.horaire) : '';
     var lieu = ex.lieu ? ' — 📍 ' + esc(ex.lieu) : '';
-    
+    var typePrefix = (currentMode === 'motos' && ex.type_examen) ? '🏍️ ' + esc(ex.type_examen) + ' — ' : '📅 ';
+
     var html = '<div style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:500;display:flex;justify-content:center;align-items:center" onclick="if(event.target===this)this.remove()">';
     html += '<div style="background:white;border-radius:12px;padding:25px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto" onclick="event.stopPropagation()">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px">';
-    html += '<h3 style="margin:0">📅 ' + esc(ex.date) + h + '</h3>';
+    html += '<h3 style="margin:0">' + typePrefix + esc(ex.date) + h + '</h3>';
     html += '<button onclick="this.closest(\'div[style*=fixed]\'). remove()" style="background:none;border:none;font-size:1.3em;cursor:pointer">✕</button></div>';
     html += '<div style="display:flex;gap:12px;margin-bottom:15px;font-size:0.9em;color:#7f8c8d">';
     if (ex.lieu) html += '<span>📍 ' + esc(ex.lieu) + '</span>';
