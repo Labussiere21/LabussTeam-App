@@ -884,9 +884,16 @@ async function loadStats() {
 
         function tauxLine(r,e){const t=r+e;const tx=t>0?Math.round(r/t*1000)/10:0;const c=tx>=60?'#27ae60':tx>=40?'#f39c12':'#e74c3c';return '<div style="display:flex;align-items:center;gap:8px;width:100%"><div style="flex:1;background:#ecf0f1;border-radius:6px;height:22px;overflow:hidden"><div style="height:100%;width:'+Math.max(tx,5)+'%;background:'+c+';border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:0.75em;font-weight:700;color:white;min-width:35px">'+tx+'%</div></div><span style="font-size:0.82em;color:#7f8c8d;white-space:nowrap">'+r+'/'+t+'</span></div>';}
 
+        // Paralléliser : fetch historique + sauvegarde snapshot en même temps
+        const [histResult] = await Promise.all([
+            sb.from('historique').select('*'),
+            saveStatsSnapshot(nbIns, nbAj)
+        ]);
+        var statsHistory = await loadStatsHistory();
+
         let histHtml='';
         try {
-            const {data:hist} = await sb.from('historique').select('*');
+            const hist = histResult.data;
             if (hist && hist.length>0) {
                 const total=hist.length, reussis=hist.filter(h=>h.resultat==='réussi').length;
                 const taux=total>0?Math.round(reussis/total*1000)/10:0;
@@ -949,10 +956,6 @@ async function loadStats() {
         html+='<div class="mini-card" style="background:#e67e22"><div class="mc-val">'+nbAj+'</div><div class="mc-lbl">Ajournés</div></div>';
         html+='<div class="mini-card" style="background:#27ae60"><div class="mc-val">'+(nbIns+nbAj)+'</div><div class="mc-lbl">Total actif</div></div>';
         html+='</div>';
-        
-        // Snapshot + graphique évolution des effectifs
-        await saveStatsSnapshot(nbIns, nbAj);
-        var statsHistory = await loadStatsHistory();
         
         if(statsHistory && statsHistory.length >= 1){
             html+='<div class="stat-card" style="margin-bottom:15px"><h3>📊 Évolution des effectifs</h3>';
