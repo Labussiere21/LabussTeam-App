@@ -383,6 +383,7 @@ let dataMotoIns = [], dataMotoAj = [], dataMotoEx = [], dataMotoHistorique = [];
 let motoTypeFilterIns = 'tous', motoTypeFilterAj = 'tous';
 let sortIns = { col: null, asc: true }, sortAj = { col: null, asc: true }, sortRes = { col: null, asc: true };
 let isAdmin = false;
+let dataReady = false;
 let currentMode = 'voitures';
 let calYear, calMonth; // calendrier
 const ADMIN_PWD = "admin2026";
@@ -403,7 +404,7 @@ async function connect(url, key) { try { sb = window.supabase.createClient(url, 
 // ADMIN
 function openAdminModal() { if (isAdmin) { exitAdmin(); return; } document.getElementById('adminModal').classList.add('show'); document.getElementById('adminPwd').value=''; document.getElementById('adminErr').style.display='none'; setTimeout(()=>document.getElementById('adminPwd').focus(),100); }
 function closeAdminModal() { document.getElementById('adminModal').classList.remove('show'); }
-function checkAdmin() { if (document.getElementById('adminPwd').value === ADMIN_PWD) { isAdmin=true; closeAdminModal(); document.getElementById('modeTag').textContent='ADMIN'; document.getElementById('modeTag').className='admin-tag'; document.getElementById('adminBtn').textContent='🔓 Quitter Admin'; document.getElementById('arcadeResetBtn').style.display=''; document.getElementById('tabStats').style.display=''; document.getElementById('tabPlaces').style.display=''; loadStats(); loadPlaces(); } else { const e=document.getElementById('adminErr'); e.textContent='Mot de passe incorrect'; e.style.display='block'; } }
+function checkAdmin() { if (document.getElementById('adminPwd').value === ADMIN_PWD) { isAdmin=true; closeAdminModal(); document.getElementById('modeTag').textContent='ADMIN'; document.getElementById('modeTag').className='admin-tag'; document.getElementById('adminBtn').textContent='🔓 Quitter Admin'; document.getElementById('arcadeResetBtn').style.display=''; document.getElementById('tabStats').style.display=''; document.getElementById('tabPlaces').style.display=''; if (dataReady) { loadStats(); loadPlaces(); } } else { const e=document.getElementById('adminErr'); e.textContent='Mot de passe incorrect'; e.style.display='block'; } }
 function exitAdmin() { isAdmin=false; document.getElementById('modeTag').textContent='LECTURE SEULE'; document.getElementById('modeTag').className='readonly-tag'; document.getElementById('adminBtn').textContent='🔐 Admin'; document.getElementById('arcadeResetBtn').style.display='none'; document.getElementById('tabStats').style.display='none'; switchTab('inscrits'); }
 function resetScoresArcade() { if (!isAdmin) return; if (confirm('🎮 Réinitialiser tous les scores des jeux ?\n\nCette action est irréversible !')) { localStorage.removeItem('gamepadBest'); localStorage.removeItem('eggScore'); alert('✅ Scores réinitialisés !'); location.reload(); } }
 
@@ -414,7 +415,7 @@ function switchTab(name) { if (name==='stats'&&!isAdmin) return; document.queryS
 function doSort(target, col) { if (target==='ins') { sortIns.asc = sortIns.col===col ? !sortIns.asc : true; sortIns.col=col; renderInscrits(); } else { sortAj.asc = sortAj.col===col ? !sortAj.asc : true; sortAj.col=col; renderAjournes(); } }
 
 // LOAD ALL
-async function refreshAll() { setStatus('','⏳ Actualisation...'); try { await Promise.all([loadInscrits(), loadAjournes(), loadExamens(), loadResultats(), loadMotoInscrits(), loadMotoAjournes(), loadMotoExamens(), loadMotoHistorique()]); if (isAdmin) { loadStats(); } setStatus('ok','🟢 '+new Date().toLocaleTimeString('fr-FR')); saveCache(); document.getElementById('offlineBanner').classList.remove('show'); document.getElementById('modeToggle').style.display='block'; } catch(e) { if (loadCache()) { setStatus('err','🟠 Hors-ligne'); } else { setStatus('err','🔴 '+e.message); } } }
+async function refreshAll() { setStatus('','⏳ Actualisation...'); try { await Promise.all([loadInscrits(), loadAjournes(), loadExamens(), loadResultats(), loadMotoInscrits(), loadMotoAjournes(), loadMotoExamens(), loadMotoHistorique()]); dataReady = true; if (isAdmin) { loadStats(); loadPlaces(); } setStatus('ok','🟢 '+new Date().toLocaleTimeString('fr-FR')); saveCache(); document.getElementById('offlineBanner').classList.remove('show'); document.getElementById('modeToggle').style.display='block'; } catch(e) { if (loadCache()) { setStatus('err','🟠 Hors-ligne'); } else { setStatus('err','🔴 '+e.message); } } }
 
 // === MODE HORS-LIGNE ===
 function saveCache() {
@@ -884,16 +885,12 @@ async function loadStats() {
 
         function tauxLine(r,e){const t=r+e;const tx=t>0?Math.round(r/t*1000)/10:0;const c=tx>=60?'#27ae60':tx>=40?'#f39c12':'#e74c3c';return '<div style="display:flex;align-items:center;gap:8px;width:100%"><div style="flex:1;background:#ecf0f1;border-radius:6px;height:22px;overflow:hidden"><div style="height:100%;width:'+Math.max(tx,5)+'%;background:'+c+';border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:0.75em;font-weight:700;color:white;min-width:35px">'+tx+'%</div></div><span style="font-size:0.82em;color:#7f8c8d;white-space:nowrap">'+r+'/'+t+'</span></div>';}
 
-        // Paralléliser : fetch historique + sauvegarde snapshot en même temps
-        const [histResult] = await Promise.all([
-            sb.from('historique').select('*'),
-            saveStatsSnapshot(nbIns, nbAj)
-        ]);
+        await saveStatsSnapshot(nbIns, nbAj);
         var statsHistory = await loadStatsHistory();
 
         let histHtml='';
         try {
-            const hist = histResult.data;
+            const hist = dataResultats;
             if (hist && hist.length>0) {
                 const total=hist.length, reussis=hist.filter(h=>h.resultat==='réussi').length;
                 const taux=total>0?Math.round(reussis/total*1000)/10:0;
