@@ -416,7 +416,32 @@ function switchTab(name) { if (name==='stats'&&!isAdmin) return; document.queryS
 function doSort(target, col) { if (target==='ins') { sortIns.asc = sortIns.col===col ? !sortIns.asc : true; sortIns.col=col; renderInscrits(); } else { sortAj.asc = sortAj.col===col ? !sortAj.asc : true; sortAj.col=col; renderAjournes(); } }
 
 // LOAD ALL
-async function refreshAll() { setStatus('','⏳ Actualisation...'); try { await Promise.all([loadInscrits(), loadAjournes(), loadExamens(), loadResultats(), loadMotoInscrits(), loadMotoAjournes(), loadMotoExamens(), loadMotoHistorique()]); try { await saveStatsSnapshot(dataIns.length, dataAj.length); dataStatsHistory = await loadStatsHistory() || []; } catch(e) { console.log('statsSnapshot err', e); } dataReady = true; if (isAdmin) { loadStats(); loadPlaces(); } setStatus('ok','🟢 '+new Date().toLocaleTimeString('fr-FR')); saveCache(); document.getElementById('offlineBanner').classList.remove('show'); document.getElementById('modeToggle').style.display='block'; } catch(e) { if (loadCache()) { setStatus('err','🟠 Hors-ligne'); } else { setStatus('err','🔴 '+e.message); } } }
+async function refreshAll() {
+    setStatus('','⏳ Actualisation...');
+    try {
+        console.time('⏱️ TOTAL refreshAll');
+        const loads = { loadInscrits, loadAjournes, loadExamens, loadResultats, loadMotoInscrits, loadMotoAjournes, loadMotoExamens, loadMotoHistorique };
+        await Promise.all(Object.entries(loads).map(async function(entry){ const nom=entry[0], fn=entry[1]; const t0=performance.now(); await fn(); console.log('⏱️ '+nom+' : '+Math.round(performance.now()-t0)+' ms'); }));
+        try {
+            const tS=performance.now();
+            await saveStatsSnapshot(dataIns.length, dataAj.length);
+            console.log('⏱️ saveStatsSnapshot : '+Math.round(performance.now()-tS)+' ms');
+            const tH=performance.now();
+            dataStatsHistory = await loadStatsHistory() || [];
+            console.log('⏱️ loadStatsHistory : '+Math.round(performance.now()-tH)+' ms');
+        } catch(e) { console.log('statsSnapshot err', e); }
+        console.timeEnd('⏱️ TOTAL refreshAll');
+        dataReady = true;
+        if (isAdmin) { loadStats(); loadPlaces(); }
+        setStatus('ok','🟢 '+new Date().toLocaleTimeString('fr-FR'));
+        saveCache();
+        document.getElementById('offlineBanner').classList.remove('show');
+        document.getElementById('modeToggle').style.display='block';
+    } catch(e) {
+        if (loadCache()) { setStatus('err','🟠 Hors-ligne'); }
+        else { setStatus('err','🔴 '+e.message); }
+    }
+}
 
 // === MODE HORS-LIGNE ===
 function saveCache() {
