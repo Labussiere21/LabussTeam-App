@@ -87,7 +87,6 @@
         .mini-card { flex: 1; min-width: 120px; padding: 15px; border-radius: 10px; color: white; text-align: center; }
         .mini-card .mc-val { font-size: 1.8em; font-weight: 700; }
         .mini-card .mc-lbl { font-size: 0.82em; opacity: 0.9; }
-        .places-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
         .place-card { background: white; border-radius: 10px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); text-align: center; }
         .place-card .mois-name { font-weight: 600; margin-bottom: 6px; }
         .place-card .place-bar { background: #ecf0f1; border-radius: 6px; height: 18px; overflow: hidden; margin: 6px 0; }
@@ -123,7 +122,6 @@
             th, td { padding: 7px 5px; }
             .candidats-grid { grid-template-columns: 1fr; }
             .stats-grid { grid-template-columns: 1fr; }
-            .places-grid { grid-template-columns: repeat(2, 1fr); }
         }
         /* GAMEPAD */
         .gamepad-btn { position:fixed; bottom:15px; right:15px; width:44px; height:44px; border-radius:50%; background:rgba(0,0,0,0.15); border:none; font-size:1.4em; cursor:pointer; z-index:50; opacity:0.3; transition:opacity 0.3s; }
@@ -405,7 +403,7 @@ async function connect(url, key) { try { sb = window.supabase.createClient(url, 
 // ADMIN
 function openAdminModal() { if (isAdmin) { exitAdmin(); return; } document.getElementById('adminModal').classList.add('show'); document.getElementById('adminPwd').value=''; document.getElementById('adminErr').style.display='none'; setTimeout(()=>document.getElementById('adminPwd').focus(),100); }
 function closeAdminModal() { document.getElementById('adminModal').classList.remove('show'); }
-function checkAdmin() { if (document.getElementById('adminPwd').value === ADMIN_PWD) { isAdmin=true; closeAdminModal(); document.getElementById('modeTag').textContent='ADMIN'; document.getElementById('modeTag').className='admin-tag'; document.getElementById('adminBtn').textContent='🔓 Quitter Admin'; var _arb=document.getElementById('arcadeResetBtn'); if(_arb)_arb.style.display=''; var _ts=document.getElementById('tabStats'); if(_ts)_ts.style.display=''; var _tp=document.getElementById('tabPlaces'); if(_tp)_tp.style.display=''; if (dataReady) { loadStats(); loadPlaces(); } } else { const e=document.getElementById('adminErr'); e.textContent='Mot de passe incorrect'; e.style.display='block'; } }
+function checkAdmin() { if (document.getElementById('adminPwd').value === ADMIN_PWD) { isAdmin=true; closeAdminModal(); document.getElementById('modeTag').textContent='ADMIN'; document.getElementById('modeTag').className='admin-tag'; document.getElementById('adminBtn').textContent='🔓 Quitter Admin'; document.getElementById('arcadeResetBtn').style.display=''; document.getElementById('tabStats').style.display=''; if (dataReady) { loadStats(); } } else { const e=document.getElementById('adminErr'); e.textContent='Mot de passe incorrect'; e.style.display='block'; } }
 function exitAdmin() { isAdmin=false; document.getElementById('modeTag').textContent='LECTURE SEULE'; document.getElementById('modeTag').className='readonly-tag'; document.getElementById('adminBtn').textContent='🔐 Admin'; document.getElementById('arcadeResetBtn').style.display='none'; document.getElementById('tabStats').style.display='none'; switchTab('inscrits'); }
 function resetScoresArcade() { if (!isAdmin) return; if (confirm('🎮 Réinitialiser tous les scores des jeux ?\n\nCette action est irréversible !')) { localStorage.removeItem('gamepadBest'); localStorage.removeItem('eggScore'); alert('✅ Scores réinitialisés !'); location.reload(); } }
 
@@ -416,32 +414,7 @@ function switchTab(name) { if (name==='stats'&&!isAdmin) return; document.queryS
 function doSort(target, col) { if (target==='ins') { sortIns.asc = sortIns.col===col ? !sortIns.asc : true; sortIns.col=col; renderInscrits(); } else { sortAj.asc = sortAj.col===col ? !sortAj.asc : true; sortAj.col=col; renderAjournes(); } }
 
 // LOAD ALL
-async function refreshAll() {
-    setStatus('','⏳ Actualisation...');
-    try {
-        console.time('⏱️ TOTAL refreshAll');
-        const loads = { loadInscrits, loadAjournes, loadExamens, loadResultats, loadMotoInscrits, loadMotoAjournes, loadMotoExamens, loadMotoHistorique };
-        await Promise.all(Object.entries(loads).map(async function(entry){ const nom=entry[0], fn=entry[1]; const t0=performance.now(); await fn(); console.log('⏱️ '+nom+' : '+Math.round(performance.now()-t0)+' ms'); }));
-        try {
-            const tS=performance.now();
-            await saveStatsSnapshot(dataIns.length, dataAj.length);
-            console.log('⏱️ saveStatsSnapshot : '+Math.round(performance.now()-tS)+' ms');
-            const tH=performance.now();
-            dataStatsHistory = await loadStatsHistory() || [];
-            console.log('⏱️ loadStatsHistory : '+Math.round(performance.now()-tH)+' ms');
-        } catch(e) { console.log('statsSnapshot err', e); }
-        console.timeEnd('⏱️ TOTAL refreshAll');
-        dataReady = true;
-        if (isAdmin) { loadStats(); loadPlaces(); }
-        setStatus('ok','🟢 '+new Date().toLocaleTimeString('fr-FR'));
-        saveCache();
-        document.getElementById('offlineBanner').classList.remove('show');
-        document.getElementById('modeToggle').style.display='block';
-    } catch(e) {
-        if (loadCache()) { setStatus('err','🟠 Hors-ligne'); }
-        else { setStatus('err','🔴 '+e.message); }
-    }
-}
+async function refreshAll() { setStatus('','⏳ Actualisation...'); try { await Promise.all([loadInscrits(), loadAjournes(), loadExamens(), loadResultats(), loadMotoInscrits(), loadMotoAjournes(), loadMotoExamens(), loadMotoHistorique()]); try { await saveStatsSnapshot(dataIns.length, dataAj.length); dataStatsHistory = await loadStatsHistory() || []; } catch(e) { console.log('statsSnapshot err', e); } dataReady = true; if (isAdmin) { loadStats(); } setStatus('ok','🟢 '+new Date().toLocaleTimeString('fr-FR')); saveCache(); document.getElementById('offlineBanner').classList.remove('show'); document.getElementById('modeToggle').style.display='block'; } catch(e) { if (loadCache()) { setStatus('err','🟠 Hors-ligne'); } else { setStatus('err','🔴 '+e.message); } } }
 
 // === MODE HORS-LIGNE ===
 function saveCache() {
@@ -1127,47 +1100,6 @@ async function loadStatsMoto() {
     } catch(e) { box.innerHTML = '<p style="color:#e74c3c;padding:20px">Erreur : ' + e.message + '</p>'; }
 }
 
-// LOAD PLACES
-async function loadPlaces() {
-    const box = document.getElementById('placesBox');
-    if (!box) return;
-    box.innerHTML = '<div class="loader">Chargement...</div>';
-    try {
-        const {data:places,error} = await sb.from('places').select('*');
-        if (error) throw error;
-        const parMois={};
-        // Compter inscrits
-        dataIns.forEach(e=>{if(e.mois)parMois[e.mois]=(parMois[e.mois]||0)+1;});
-        // Compter ajournés
-        dataAj.forEach(e=>{if(e.mois&&e.mois.trim())parMois[e.mois]=(parMois[e.mois]||0)+1;});
-        // Compter historique (résultats passés)
-        dataResultats.forEach(r=>{if(r.mois_examen)parMois[r.mois_examen]=(parMois[r.mois_examen]||0)+1;});
-        
-        // Compter inscrits examen par mois
-        var examParMois = {};
-        dataEx.forEach(function(ex){
-            if(!ex.candidats) return;
-            ex.candidats.forEach(function(c){
-                // Chercher le mois de l'élève
-                var found = dataIns.find(function(e){ return e.nom===c.nom && e.prenom===c.prenom; });
-                if(!found) found = dataAj.find(function(e){ return e.nom===c.nom && e.prenom===c.prenom; });
-                if(found && found.mois) examParMois[found.mois] = (examParMois[found.mois]||0)+1;
-            });
-        });
-        
-        const sorted=(places||[]).sort((a,b)=>moisKey(a.mois)-moisKey(b.mois));
-        box.innerHTML='<div class="places-grid">'+sorted.map(function(p){
-            const occ=parMois[p.mois]||0;
-            const nbExam=examParMois[p.mois]||0;
-            const pct=p.nb>0?Math.round(occ/p.nb*100):0;
-            const pctBar=Math.min(pct,100);
-            const color=occ>p.nb?'#e74c3c':pct>=90?'#f39c12':'#27ae60';
-            const txtColor=occ>p.nb?'color:#e74c3c;':'';
-            var examTxt = nbExam>0 ? '<div style="font-size:0.8em;color:#3498db;font-weight:600">📝 '+nbExam+'</div>' : '';
-            return '<div class="place-card"><div class="mois-name">'+esc(p.mois)+'</div><div style="font-size:1.4em;font-weight:700;'+txtColor+'">'+occ+' / '+p.nb+'</div><div class="place-bar"><div class="place-fill" style="width:'+pctBar+'%;background:'+color+'"></div></div><div class="place-txt">'+pct+'% occupé</div>'+examTxt+'</div>';
-        }).join('')+'</div>';
-    } catch(e) { box.innerHTML='<p style="color:#e74c3c;padding:20px">Erreur : '+e.message+'</p>'; }
-}
 
 
 var dataResultats = [];
