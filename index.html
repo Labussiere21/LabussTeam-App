@@ -405,7 +405,7 @@ async function connect(url, key) { try { sb = window.supabase.createClient(url, 
 // ADMIN
 function openAdminModal() { if (isAdmin) { exitAdmin(); return; } document.getElementById('adminModal').classList.add('show'); document.getElementById('adminPwd').value=''; document.getElementById('adminErr').style.display='none'; setTimeout(()=>document.getElementById('adminPwd').focus(),100); }
 function closeAdminModal() { document.getElementById('adminModal').classList.remove('show'); }
-function checkAdmin() { if (document.getElementById('adminPwd').value === ADMIN_PWD) { isAdmin=true; closeAdminModal(); document.getElementById('modeTag').textContent='ADMIN'; document.getElementById('modeTag').className='admin-tag'; document.getElementById('adminBtn').textContent='🔓 Quitter Admin'; document.getElementById('arcadeResetBtn').style.display=''; document.getElementById('tabStats').style.display=''; document.getElementById('tabPlaces').style.display=''; if (dataReady) { loadStats(); loadPlaces(); } } else { const e=document.getElementById('adminErr'); e.textContent='Mot de passe incorrect'; e.style.display='block'; } }
+function checkAdmin() { if (document.getElementById('adminPwd').value === ADMIN_PWD) { isAdmin=true; closeAdminModal(); document.getElementById('modeTag').textContent='ADMIN'; document.getElementById('modeTag').className='admin-tag'; document.getElementById('adminBtn').textContent='🔓 Quitter Admin'; var _arb=document.getElementById('arcadeResetBtn'); if(_arb)_arb.style.display=''; var _ts=document.getElementById('tabStats'); if(_ts)_ts.style.display=''; var _tp=document.getElementById('tabPlaces'); if(_tp)_tp.style.display=''; if (dataReady) { loadStats(); loadPlaces(); } } else { const e=document.getElementById('adminErr'); e.textContent='Mot de passe incorrect'; e.style.display='block'; } }
 function exitAdmin() { isAdmin=false; document.getElementById('modeTag').textContent='LECTURE SEULE'; document.getElementById('modeTag').className='readonly-tag'; document.getElementById('adminBtn').textContent='🔐 Admin'; document.getElementById('arcadeResetBtn').style.display='none'; document.getElementById('tabStats').style.display='none'; switchTab('inscrits'); }
 function resetScoresArcade() { if (!isAdmin) return; if (confirm('🎮 Réinitialiser tous les scores des jeux ?\n\nCette action est irréversible !')) { localStorage.removeItem('gamepadBest'); localStorage.removeItem('eggScore'); alert('✅ Scores réinitialisés !'); location.reload(); } }
 
@@ -1130,6 +1130,7 @@ async function loadStatsMoto() {
 // LOAD PLACES
 async function loadPlaces() {
     const box = document.getElementById('placesBox');
+    if (!box) return;
     box.innerHTML = '<div class="loader">Chargement...</div>';
     try {
         const {data:places,error} = await sb.from('places').select('*');
