@@ -1228,7 +1228,7 @@ function renderResultats() {
         var nbR = eleves.filter(function(h){ return h.resultat === 'réussi'; }).length;
         var nbE = eleves.length - nbR;
         var taux = eleves.length > 0 ? Math.round((nbR / eleves.length) * 100) : 0;
-        var color = taux >= 70 ? '#27ae60' : taux >= 50 ? '#f39c12' : '#e74c3c';
+        var color = taux >= 60 ? '#27ae60' : taux >= 40 ? '#f39c12' : '#e74c3c';
 
         // Trier : échecs en premier, puis par nom
         var elevesTries = eleves.slice().sort(function(a,b){
@@ -1668,7 +1668,7 @@ function calShowResultats(dateStr) {
     html += '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="background:none;border:none;font-size:1.3em;cursor:pointer">✕</button></div>';
     
     // Résumé
-    var tauxColor = taux>=70 ? '#27ae60' : taux>=50 ? '#f39c12' : '#e74c3c';
+    var tauxColor = taux>=60 ? '#27ae60' : taux>=40 ? '#f39c12' : '#e74c3c';
     html += '<div style="display:flex;gap:15px;margin-bottom:15px;align-items:center">';
     html += '<div style="background:'+tauxColor+';color:white;padding:10px 18px;border-radius:10px;text-align:center"><div style="font-size:1.5em;font-weight:700">'+taux+'%</div><div style="font-size:0.75em">de réussite</div></div>';
     html += '<div><div style="font-size:0.9em">✅ '+nbR+' réussi'+(nbR>1?'s':'')+'</div><div style="font-size:0.9em">❌ '+nbE+' échec'+(nbE>1?'s':'')+'</div><div style="font-size:0.85em;color:#7f8c8d">'+res.length+' candidat'+(res.length>1?'s':'')+'</div></div>';
