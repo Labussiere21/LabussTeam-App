@@ -175,6 +175,19 @@
         .res-eleve-ko { background:#fdf2f1; color:#c0392b; }
         .res-eleve-name { font-weight:600; }
         .res-eleve-meta { color:#95a5a6; font-size:0.9em; }
+        /* ADMIN FORMS */
+        .admin-form label { display:block; font-size:0.9em; font-weight:600; margin:10px 0 4px; color:#2c3e50; }
+        .admin-form input, .admin-form select, .admin-form textarea { width:100%; padding:9px 12px; border:2px solid #ddd; border-radius:8px; font-size:0.93em; box-sizing:border-box; }
+        .admin-form input:focus, .admin-form select:focus { border-color:#e67e22; outline:none; }
+        .admin-action-bar { display:none; background:#fef5ec; border:1px solid #f0a070; border-radius:8px; padding:10px 14px; margin-bottom:12px; gap:8px; flex-wrap:wrap; align-items:center; }
+        .admin-action-bar.show { display:flex; }
+        .admin-action-bar span { font-size:0.88em; font-weight:700; color:#e67e22; }
+        .abtn { border:none; padding:6px 14px; border-radius:6px; font-size:0.82em; font-weight:600; cursor:pointer; color:white; }
+        .abtn-orange { background:#e67e22; } .abtn-orange:hover { background:#d35400; }
+        .abtn-blue { background:#3498db; } .abtn-blue:hover { background:#2980b9; }
+        .abtn-red { background:#e74c3c; } .abtn-red:hover { background:#c0392b; }
+        .abtn-green { background:#27ae60; } .abtn-green:hover { background:#219a52; }
+        .abtn-grey { background:#7f8c8d; } .abtn-grey:hover { background:#6c7a7d; }
     </style>
 </head>
 <body>
@@ -334,8 +347,9 @@
             </tr></thead><tbody id="tbAj"></tbody></table></div>
         </div>
         <div class="tab-content" id="tab-examens">
-            <div style="margin-bottom:12px">
+            <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
                 <button class="btn btn-sm" onclick="switchTab('calendrier');renderCalendrier()" style="background:#34495e">◀ Retour au calendrier</button>
+                <button id="adminBtnNewExamVue" class="abtn abtn-orange" onclick="adminShowCreateExam()" style="display:none">➕ Nouvel examen</button>
             </div>
             <div id="examBox"><div class="loader">Chargement...</div></div>
         </div>
@@ -369,6 +383,7 @@
                 <button class="btn btn-sm" onclick="calNav(1)" style="background:#34495e">▶</button>
                 <button class="btn btn-sm btn-blue" onclick="calGoToday()">Aujourd'hui</button>
                 <button class="btn btn-sm" onclick="switchTab('examens')" style="background:#9b59b6">📋 Vue d'ensemble</button>
+                <button id="adminBtnNewExamCal" class="abtn abtn-orange" onclick="adminShowCreateExam()" style="display:none">➕ Nouvel examen</button>
             </div>
             <div id="calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;background:#ddd;border-radius:10px;overflow:hidden"></div>
         </div>
@@ -403,8 +418,8 @@ async function connect(url, key) { try { sb = window.supabase.createClient(url, 
 // ADMIN
 function openAdminModal() { if (isAdmin) { exitAdmin(); return; } document.getElementById('adminModal').classList.add('show'); document.getElementById('adminPwd').value=''; document.getElementById('adminErr').style.display='none'; setTimeout(()=>document.getElementById('adminPwd').focus(),100); }
 function closeAdminModal() { document.getElementById('adminModal').classList.remove('show'); }
-function checkAdmin() { if (document.getElementById('adminPwd').value === ADMIN_PWD) { isAdmin=true; closeAdminModal(); document.getElementById('modeTag').textContent='ADMIN'; document.getElementById('modeTag').className='admin-tag'; document.getElementById('adminBtn').textContent='🔓 Quitter Admin'; document.getElementById('arcadeResetBtn').style.display=''; document.getElementById('tabStats').style.display=''; if (dataReady) { loadStats(); } } else { const e=document.getElementById('adminErr'); e.textContent='Mot de passe incorrect'; e.style.display='block'; } }
-function exitAdmin() { isAdmin=false; document.getElementById('modeTag').textContent='LECTURE SEULE'; document.getElementById('modeTag').className='readonly-tag'; document.getElementById('adminBtn').textContent='🔐 Admin'; document.getElementById('arcadeResetBtn').style.display='none'; document.getElementById('tabStats').style.display='none'; switchTab('inscrits'); }
+function checkAdmin() { if (document.getElementById('adminPwd').value === ADMIN_PWD) { isAdmin=true; closeAdminModal(); document.getElementById('modeTag').textContent='ADMIN'; document.getElementById('modeTag').className='admin-tag'; document.getElementById('adminBtn').textContent='🔓 Quitter Admin'; document.getElementById('arcadeResetBtn').style.display=''; document.getElementById('tabStats').style.display=''; document.getElementById('adminBtnNewExamCal').style.display=''; document.getElementById('adminBtnNewExamVue').style.display=''; if (dataReady) { loadStats(); } } else { const e=document.getElementById('adminErr'); e.textContent='Mot de passe incorrect'; e.style.display='block'; } }
+function exitAdmin() { isAdmin=false; document.getElementById('modeTag').textContent='LECTURE SEULE'; document.getElementById('modeTag').className='readonly-tag'; document.getElementById('adminBtn').textContent='🔐 Admin'; document.getElementById('arcadeResetBtn').style.display='none'; document.getElementById('tabStats').style.display='none'; document.getElementById('adminBtnNewExamCal').style.display='none'; document.getElementById('adminBtnNewExamVue').style.display='none'; switchTab('inscrits'); }
 function resetScoresArcade() { if (!isAdmin) return; if (confirm('🎮 Réinitialiser tous les scores des jeux ?\n\nCette action est irréversible !')) { localStorage.removeItem('gamepadBest'); localStorage.removeItem('eggScore'); alert('✅ Scores réinitialisés !'); location.reload(); } }
 
 // TABS
@@ -1565,15 +1580,29 @@ function calShowExam(exId) {
         html += '<h4 style="margin:0 0 10px;font-size:0.95em">Candidats :</h4>';
         ex.candidats.forEach(function(c, i) {
             var src = c.src === 'ajourné' ? '<span style="color:#e67e22;font-size:0.8em;margin-left:5px">(Ajourné)</span>' : '';
-            html += '<div style="padding:6px 10px;background:' + (i%2===0?'#f8f9fa':'white') + ';border-radius:6px;margin-bottom:3px;font-size:0.9em">';
-            html += '<strong>' + (i+1) + '.</strong> ' + esc(c.nom) + ' ' + esc(c.prenom) + src + '</div>';
+            html += '<div style="padding:6px 10px;background:' + (i%2===0?'#f8f9fa':'white') + ';border-radius:6px;margin-bottom:3px;font-size:0.9em;display:flex;justify-content:space-between;align-items:center">';
+            html += '<span><strong>' + (i+1) + '.</strong> ' + esc(c.nom) + ' ' + esc(c.prenom) + src + '</span>';
+            if (isAdmin) {
+                var eleveId = c.src === 'ajourné' ? -c.id : c.id;
+                html += '<button onclick="adminRemoveCandidat(' + exId + ',' + eleveId + ')" style="background:#e74c3c;color:white;border:none;padding:2px 8px;border-radius:5px;font-size:0.78em;cursor:pointer">✕</button>';
+            }
+            html += '</div>';
         });
     } else {
         html += '<p style="color:#95a5a6;font-style:italic">Aucun candidat inscrit</p>';
     }
-    
+
+    if (isAdmin) {
+        html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:2px solid #f0a070">';
+        html += '<button onclick="adminShowAddCandidat(' + exId + ')" class="abtn abtn-green">➕ Ajouter élève</button>';
+        html += '<button onclick="adminShowEditExam(' + exId + ')" class="abtn abtn-blue">✏️ Modifier</button>';
+        html += '<button onclick="adminShowValiderExam(' + exId + ')" class="abtn abtn-orange">✅ Valider / Clôturer</button>';
+        html += '<button onclick="adminDeleteExam(' + exId + ')" class="abtn abtn-red">🗑️ Supprimer</button>';
+        html += '</div>';
+    }
+
     html += '</div></div>';
-    
+
     var overlay = document.createElement('div');
     overlay.innerHTML = html;
     document.body.appendChild(overlay.firstElementChild);
@@ -2027,6 +2056,357 @@ async function memWin(){
     html+='<button onclick="memStart2()" style="background:#1abc9c;color:white;border:none;padding:8px 18px;border-radius:6px;cursor:pointer;margin:4px">🔄 Rejouer</button>';
     html+='<button onclick="memMenu()" style="background:#7f8c8d;color:white;border:none;padding:8px 18px;border-radius:6px;cursor:pointer;margin:4px">📋 Scores</button>';
     document.getElementById('memoryContent').innerHTML=html;
+}
+
+// ===== ADMIN — GESTION EXAMENS =====
+
+function adminCloseOverlays() {
+    document.querySelectorAll('div[data-admin-overlay]').forEach(function(el) { el.remove(); });
+}
+
+function adminMakeOverlay(innerHtml, zIndex) {
+    var wrap = document.createElement('div');
+    wrap.setAttribute('data-admin-overlay', '1');
+    wrap.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:' + (zIndex||500) + ';display:flex;justify-content:center;align-items:center';
+    wrap.onclick = function(e) { if (e.target === wrap) wrap.remove(); };
+    var box = document.createElement('div');
+    box.style.cssText = 'background:white;border-radius:12px;padding:25px;max-width:500px;width:90%;max-height:90vh;overflow-y:auto';
+    box.onclick = function(e) { e.stopPropagation(); };
+    box.innerHTML = innerHtml;
+    wrap.appendChild(box);
+    document.body.appendChild(wrap);
+    return wrap;
+}
+
+function adminShowCreateExam() {
+    if (!isAdmin) return;
+    var isMoto = currentMode === 'motos';
+    var motoTypeHtml = isMoto ? '<label>Type d\'examen</label><select id="newExType"><option>Plateau</option><option>Circulation</option></select>' : '';
+    adminMakeOverlay(
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">' +
+        '<h3 style="margin:0;color:#e67e22">➕ Nouvel examen ' + (isMoto ? '🏍️' : '🚗') + '</h3>' +
+        '<button onclick="this.closest(\'[data-admin-overlay]\').remove()" style="background:none;border:none;font-size:1.3em;cursor:pointer">✕</button></div>' +
+        '<div class="admin-form">' +
+        '<label>Date (JJ/MM/AAAA) <span style="color:#e74c3c">*</span></label><input type="text" id="newExDate" placeholder="ex : 15/08/2026">' +
+        '<label>Horaire</label><input type="text" id="newExHoraire" placeholder="ex : 09:00">' +
+        '<label>Lieu</label><input type="text" id="newExLieu" placeholder="ex : Beaune">' +
+        '<label>Nombre de places</label><input type="number" id="newExPlaces" value="8" min="1">' +
+        motoTypeHtml +
+        '</div>' +
+        '<div style="display:flex;gap:10px;margin-top:18px">' +
+        '<button onclick="this.closest(\'[data-admin-overlay]\').remove()" style="flex:1;padding:10px;background:#95a5a6;color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer">Annuler</button>' +
+        '<button onclick="adminDoCreateExam()" style="flex:1;padding:10px;background:#e67e22;color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer">Créer</button>' +
+        '</div>'
+    );
+}
+
+async function adminDoCreateExam() {
+    if (!isAdmin) return;
+    var isMoto = currentMode === 'motos';
+    var date = (document.getElementById('newExDate').value || '').trim();
+    var horaire = (document.getElementById('newExHoraire').value || '').trim();
+    var lieu = (document.getElementById('newExLieu').value || '').trim();
+    var places = parseInt(document.getElementById('newExPlaces').value) || 8;
+    var typeExamen = isMoto ? (document.getElementById('newExType').value || 'Plateau') : null;
+    if (!date) { alert('Veuillez saisir une date.'); return; }
+    try {
+        var table = isMoto ? 'examens_moto' : 'examens';
+        var row = { date: date, horaire: horaire || null, lieu: lieu || null, nb_places: places, statut: isMoto ? 'programme' : 'programmé' };
+        if (isMoto) row.type_examen = typeExamen;
+        var { error } = await sb.from(table).insert(row);
+        if (error) throw error;
+        adminCloseOverlays();
+        document.querySelectorAll('div[style*="position:fixed"]').forEach(function(el) { el.remove(); });
+        alert('✅ Examen créé !');
+        await refreshAll();
+        renderCalendrier();
+    } catch(e) { alert('Erreur : ' + e.message); }
+}
+
+function adminShowEditExam(exId) {
+    if (!isAdmin) return;
+    var isMoto = currentMode === 'motos';
+    var source = isMoto ? dataMotoEx : dataEx;
+    var ex = source.find(function(e) { return e.id === exId; });
+    if (!ex) return;
+    var motoTypeHtml = isMoto
+        ? '<label>Type d\'examen</label><select id="editExType"><option' + (ex.type_examen==='Plateau'?' selected':'') + '>Plateau</option><option' + (ex.type_examen==='Circulation'?' selected':'') + '>Circulation</option></select>'
+        : '';
+    adminMakeOverlay(
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">' +
+        '<h3 style="margin:0;color:#3498db">✏️ Modifier l\'examen</h3>' +
+        '<button onclick="this.closest(\'[data-admin-overlay]\').remove()" style="background:none;border:none;font-size:1.3em;cursor:pointer">✕</button></div>' +
+        '<div class="admin-form">' +
+        '<label>Date (JJ/MM/AAAA)</label><input type="text" id="editExDate" value="' + esc(ex.date) + '">' +
+        '<label>Horaire</label><input type="text" id="editExHoraire" value="' + esc(ex.horaire || '') + '">' +
+        '<label>Lieu</label><input type="text" id="editExLieu" value="' + esc(ex.lieu || '') + '">' +
+        '<label>Nombre de places</label><input type="number" id="editExPlaces" value="' + (ex.nb_places || 8) + '" min="1">' +
+        motoTypeHtml +
+        '</div>' +
+        '<div style="display:flex;gap:10px;margin-top:18px">' +
+        '<button onclick="this.closest(\'[data-admin-overlay]\').remove()" style="flex:1;padding:10px;background:#95a5a6;color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer">Annuler</button>' +
+        '<button onclick="adminDoEditExam(' + exId + ')" style="flex:1;padding:10px;background:#3498db;color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer">Enregistrer</button>' +
+        '</div>',
+        600
+    );
+}
+
+async function adminDoEditExam(exId) {
+    if (!isAdmin) return;
+    var isMoto = currentMode === 'motos';
+    var date = (document.getElementById('editExDate').value || '').trim();
+    var horaire = (document.getElementById('editExHoraire').value || '').trim();
+    var lieu = (document.getElementById('editExLieu').value || '').trim();
+    var places = parseInt(document.getElementById('editExPlaces').value) || 8;
+    var typeExamen = isMoto ? (document.getElementById('editExType').value || 'Plateau') : null;
+    if (!date) { alert('Veuillez saisir une date.'); return; }
+    try {
+        var table = isMoto ? 'examens_moto' : 'examens';
+        var upd = { date: date, horaire: horaire || null, lieu: lieu || null, nb_places: places };
+        if (isMoto) upd.type_examen = typeExamen;
+        var { error } = await sb.from(table).update(upd).eq('id', exId);
+        if (error) throw error;
+        adminCloseOverlays();
+        document.querySelectorAll('div[style*="position:fixed"]').forEach(function(el) { el.remove(); });
+        alert('✅ Examen modifié !');
+        await refreshAll();
+        renderCalendrier();
+    } catch(e) { alert('Erreur : ' + e.message); }
+}
+
+async function adminDeleteExam(exId) {
+    if (!isAdmin) return;
+    var isMoto = currentMode === 'motos';
+    var source = isMoto ? dataMotoEx : dataEx;
+    var ex = source.find(function(e) { return e.id === exId; });
+    var nb = ex ? (ex.candidats ? ex.candidats.length : 0) : 0;
+    var msg = '🗑️ Supprimer cet examen ?';
+    if (nb > 0) msg += '\n\n⚠️ ' + nb + ' candidat(s) inscrit(s) seront retirés.';
+    if (!confirm(msg)) return;
+    try {
+        var tableEx = isMoto ? 'examens_moto' : 'examens';
+        var tableIns = isMoto ? 'inscriptions_examens_moto' : 'inscriptions_examens';
+        await sb.from(tableIns).delete().eq('examen_id', exId);
+        var { error } = await sb.from(tableEx).delete().eq('id', exId);
+        if (error) throw error;
+        adminCloseOverlays();
+        document.querySelectorAll('div[style*="position:fixed"]').forEach(function(el) { el.remove(); });
+        alert('✅ Examen supprimé.');
+        await refreshAll();
+        renderCalendrier();
+    } catch(e) { alert('Erreur : ' + e.message); }
+}
+
+var _adminAddCandExId = null, _adminAddCandIns = [], _adminAddCandAj = [];
+
+function adminShowAddCandidat(exId) {
+    if (!isAdmin) return;
+    var isMoto = currentMode === 'motos';
+    var source = isMoto ? dataMotoEx : dataEx;
+    var ex = source.find(function(e) { return e.id === exId; });
+    if (!ex) return;
+    var alreadyIds = (ex.candidats || []).map(function(c) { return c.id; });
+    _adminAddCandExId = exId;
+    _adminAddCandIns = (isMoto ? dataMotoIns : dataIns).filter(function(e) { return alreadyIds.indexOf(e.id) === -1; });
+    _adminAddCandAj  = (isMoto ? dataMotoAj  : dataAj ).filter(function(e) { return alreadyIds.indexOf(e.id) === -1; });
+    adminMakeOverlay(
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">' +
+        '<h3 style="margin:0;color:#27ae60">➕ Ajouter un élève</h3>' +
+        '<button onclick="this.closest(\'[data-admin-overlay]\').remove()" style="background:none;border:none;font-size:1.3em;cursor:pointer">✕</button></div>' +
+        '<input type="text" id="searchCandidatInput" oninput="adminFilterCandidats()" placeholder="🔍 Rechercher nom / prénom..." style="width:100%;padding:9px 12px;border:2px solid #ddd;border-radius:8px;font-size:0.93em;margin-bottom:12px;box-sizing:border-box">' +
+        '<div id="candidatsList" style="max-height:420px;overflow-y:auto">' + adminBuildCandidatsList('') + '</div>',
+        600
+    );
+}
+
+function adminBuildCandidatsList(search) {
+    var s = (search || '').toLowerCase().trim();
+    var fIns = _adminAddCandIns.filter(function(e) { return !s || (e.nom||'').toLowerCase().indexOf(s) === 0 || (e.prenom||'').toLowerCase().indexOf(s) === 0; });
+    var fAj  = _adminAddCandAj.filter(function(e)  { return !s || (e.nom||'').toLowerCase().indexOf(s) === 0 || (e.prenom||'').toLowerCase().indexOf(s) === 0; });
+    if (!fIns.length && !fAj.length) return '<p style="color:#95a5a6;text-align:center;padding:20px">Aucun élève disponible</p>';
+    var html = '';
+    if (fIns.length) {
+        html += '<div style="font-weight:700;font-size:0.82em;color:#3498db;margin:6px 0 4px;text-transform:uppercase">📋 Inscrits (' + fIns.length + ')</div>';
+        fIns.forEach(function(e) {
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-radius:8px;margin-bottom:3px;background:#f8f9fa">' +
+                '<span><strong>' + esc(e.nom||'') + '</strong> ' + esc(e.prenom||'') + '</span>' +
+                '<button onclick="adminDoAddCandidat(' + _adminAddCandExId + ',' + e.id + ')" class="abtn abtn-green" style="font-size:0.8em;padding:4px 10px">Ajouter</button></div>';
+        });
+    }
+    if (fAj.length) {
+        html += '<div style="font-weight:700;font-size:0.82em;color:#e67e22;margin:10px 0 4px;text-transform:uppercase">⚠️ Ajournés (' + fAj.length + ')</div>';
+        fAj.forEach(function(e) {
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-radius:8px;margin-bottom:3px;background:#fef9f0">' +
+                '<span><strong>' + esc(e.nom||'') + '</strong> ' + esc(e.prenom||'') + '</span>' +
+                '<button onclick="adminDoAddCandidat(' + _adminAddCandExId + ',' + (-e.id) + ')" class="abtn abtn-orange" style="font-size:0.8em;padding:4px 10px">Ajouter</button></div>';
+        });
+    }
+    return html;
+}
+
+function adminFilterCandidats() {
+    var s = (document.getElementById('searchCandidatInput').value || '');
+    document.getElementById('candidatsList').innerHTML = adminBuildCandidatsList(s);
+}
+
+async function adminDoAddCandidat(exId, eleveId) {
+    if (!isAdmin) return;
+    var isMoto = currentMode === 'motos';
+    var table = isMoto ? 'inscriptions_examens_moto' : 'inscriptions_examens';
+    try {
+        var { error } = await sb.from(table).insert({ examen_id: exId, eleve_id: eleveId });
+        if (error) throw error;
+        if (isMoto) await loadMotoExamens(); else await loadExamens();
+        adminCloseOverlays();
+        document.querySelectorAll('div[style*="position:fixed"]').forEach(function(el) { el.remove(); });
+        renderCalendrier();
+        calShowExam(exId);
+    } catch(e) { alert('Erreur : ' + e.message); }
+}
+
+async function adminRemoveCandidat(exId, eleveId) {
+    if (!isAdmin) return;
+    if (!confirm('Retirer ce candidat de l\'examen ?')) return;
+    var isMoto = currentMode === 'motos';
+    var table = isMoto ? 'inscriptions_examens_moto' : 'inscriptions_examens';
+    try {
+        var { error } = await sb.from(table).delete().eq('examen_id', exId).eq('eleve_id', eleveId);
+        if (error) throw error;
+        if (isMoto) await loadMotoExamens(); else await loadExamens();
+        adminCloseOverlays();
+        document.querySelectorAll('div[style*="position:fixed"]').forEach(function(el) { el.remove(); });
+        renderCalendrier();
+        calShowExam(exId);
+    } catch(e) { alert('Erreur : ' + e.message); }
+}
+
+function adminDateToMois(dateStr) {
+    try { var p = dateStr.split('/'); return MOIS[parseInt(p[1]) - 1] + ' ' + p[2]; } catch(e) { return dateStr; }
+}
+
+function adminShowValiderExam(exId) {
+    if (!isAdmin) return;
+    var isMoto = currentMode === 'motos';
+    var source = isMoto ? dataMotoEx : dataEx;
+    var ex = source.find(function(e) { return e.id === exId; });
+    if (!ex) return;
+    if (!(ex.candidats && ex.candidats.length)) { alert('Cet examen n\'a aucun candidat inscrit.'); return; }
+
+    var rows = '';
+    ex.candidats.forEach(function(c, i) {
+        var cid = 'valres_' + i;
+        var src = c.src === 'ajourné' ? ' <span style="color:#e67e22;font-size:0.78em">(Aj)</span>' : '';
+        rows += '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border-radius:8px;margin-bottom:5px;background:#f8f9fa">' +
+            '<span><strong>' + esc(c.nom) + '</strong> ' + esc(c.prenom) + src + '</span>' +
+            '<div style="display:flex;gap:6px">' +
+            '<button id="' + cid + '_ok" onclick="adminToggleRes(\'' + cid + '\',\'ok\')" style="padding:5px 13px;border-radius:6px;border:2px solid #27ae60;background:#27ae60;color:white;cursor:pointer;font-weight:700">✅</button>' +
+            '<button id="' + cid + '_ko" onclick="adminToggleRes(\'' + cid + '\',\'ko\')" style="padding:5px 13px;border-radius:6px;border:2px solid #ddd;background:white;color:#7f8c8d;cursor:pointer;font-weight:700">❌</button>' +
+            '</div></div>';
+    });
+
+    adminMakeOverlay(
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px">' +
+        '<h3 style="margin:0;color:#27ae60">✅ Valider — ' + esc(ex.date) + '</h3>' +
+        '<button onclick="this.closest(\'[data-admin-overlay]\').remove()" style="background:none;border:none;font-size:1.3em;cursor:pointer">✕</button></div>' +
+        '<p style="color:#7f8c8d;font-size:0.85em;margin-bottom:14px">Vert = Réussi (défaut). Cliquez pour basculer. L\'examen sera clôturé.</p>' +
+        rows +
+        '<div style="display:flex;gap:10px;margin-top:18px">' +
+        '<button onclick="this.closest(\'[data-admin-overlay]\').remove()" style="flex:1;padding:10px;background:#95a5a6;color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer">Annuler</button>' +
+        '<button onclick="adminDoValiderExam(' + exId + ',' + ex.candidats.length + ')" style="flex:1;padding:10px;background:#27ae60;color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer">Clôturer</button>' +
+        '</div>',
+        600
+    );
+}
+
+function adminToggleRes(cid, choice) {
+    var okBtn = document.getElementById(cid + '_ok');
+    var koBtn = document.getElementById(cid + '_ko');
+    if (choice === 'ok') {
+        okBtn.style.cssText = 'padding:5px 13px;border-radius:6px;border:2px solid #27ae60;background:#27ae60;color:white;cursor:pointer;font-weight:700';
+        koBtn.style.cssText = 'padding:5px 13px;border-radius:6px;border:2px solid #ddd;background:white;color:#7f8c8d;cursor:pointer;font-weight:700';
+    } else {
+        koBtn.style.cssText = 'padding:5px 13px;border-radius:6px;border:2px solid #e74c3c;background:#e74c3c;color:white;cursor:pointer;font-weight:700';
+        okBtn.style.cssText = 'padding:5px 13px;border-radius:6px;border:2px solid #ddd;background:white;color:#7f8c8d;cursor:pointer;font-weight:700';
+    }
+}
+
+async function adminDoValiderExam(exId, nb) {
+    if (!isAdmin) return;
+    var isMoto = currentMode === 'motos';
+    var source = isMoto ? dataMotoEx : dataEx;
+    var ex = source.find(function(e) { return e.id === exId; });
+    if (!ex) return;
+
+    var results = ex.candidats.map(function(c, i) {
+        var okBtn = document.getElementById('valres_' + i + '_ok');
+        var isOk = okBtn && okBtn.style.background !== 'white';
+        return { candidat: c, ok: isOk };
+    });
+
+    if (!confirm('Clôturer cet examen et enregistrer ' + results.length + ' résultat(s) ?')) return;
+
+    try {
+        var moisLabel = adminDateToMois(ex.date);
+
+        if (isMoto) {
+            var histRows = results.map(function(r) {
+                return { nom: r.candidat.nom, prenom: r.candidat.prenom, resultat: r.ok ? 'Réussi' : 'Échoué', type_exam: ex.type_examen || 'Plateau', date_exam: ex.date, mois_exam: moisLabel };
+            });
+            var { error: hErr } = await sb.from('historique_moto').insert(histRows);
+            if (hErr) throw hErr;
+            await sb.from('examens_moto').update({ statut: 'cloture' }).eq('id', exId);
+            for (var i = 0; i < results.length; i++) {
+                var c = results[i].candidat;
+                if (c.id > 0) {
+                    if (results[i].ok) {
+                        await sb.from('eleves_moto').delete().eq('id', c.id);
+                    } else {
+                        await sb.from('ajournes_moto').insert({ nom: c.nom, prenom: c.prenom, type_moto: ex.type_examen || 'Plateau', mois_echec: moisLabel, date_echec: ex.date });
+                        await sb.from('eleves_moto').delete().eq('id', c.id);
+                    }
+                } else {
+                    var ajId = Math.abs(c.id);
+                    if (results[i].ok) {
+                        await sb.from('ajournes_moto').delete().eq('id', ajId);
+                    } else {
+                        await sb.from('ajournes_moto').update({ mois_echec: moisLabel, date_echec: ex.date }).eq('id', ajId);
+                    }
+                }
+            }
+        } else {
+            var histRows = results.map(function(r) {
+                var c = r.candidat;
+                return {
+                    nom: c.nom, prenom: c.prenom,
+                    resultat: r.ok ? 'réussi' : 'échoué',
+                    mois_examen: moisLabel, date_examen: ex.date,
+                    type: c.type || null,
+                    presentation: c.presentation || null,
+                    boite_auto: (c.note||'').toLowerCase().includes('boîte auto') ? 1 : 0
+                };
+            });
+            var { error: hErr } = await sb.from('historique').insert(histRows);
+            if (hErr) throw hErr;
+            await sb.from('examens').update({ statut: 'clôturé' }).eq('id', exId);
+            for (var i = 0; i < results.length; i++) {
+                var c = results[i].candidat;
+                if (c.id > 0) {
+                    await sb.from('eleves').delete().eq('id', c.id);
+                } else {
+                    var ajId = Math.abs(c.id);
+                    if (results[i].ok) {
+                        await sb.from('ajournes').update({ reinscrit: 1 }).eq('id', ajId);
+                    }
+                }
+            }
+        }
+
+        adminCloseOverlays();
+        document.querySelectorAll('div[style*="position:fixed"]').forEach(function(el) { el.remove(); });
+        alert('✅ Examen clôturé et résultats enregistrés !');
+        await refreshAll();
+        renderCalendrier();
+    } catch(e) { alert('Erreur lors de la clôture : ' + e.message); }
 }
 
 // DÉMARRAGE
