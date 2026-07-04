@@ -429,7 +429,48 @@ function switchTab(name) { if (name==='stats'&&!isAdmin) return; document.queryS
 function doSort(target, col) { if (target==='ins') { sortIns.asc = sortIns.col===col ? !sortIns.asc : true; sortIns.col=col; renderInscrits(); } else { sortAj.asc = sortAj.col===col ? !sortAj.asc : true; sortAj.col=col; renderAjournes(); } }
 
 // LOAD ALL
-async function refreshAll() { setStatus('','⏳ Actualisation...'); try { await Promise.all([loadInscrits(), loadAjournes(), loadExamens(), loadResultats(), loadMotoInscrits(), loadMotoAjournes(), loadMotoExamens(), loadMotoHistorique()]); try { await saveStatsSnapshot(dataIns.length, dataAj.length); dataStatsHistory = await loadStatsHistory() || []; } catch(e) { console.log('statsSnapshot err', e); } dataReady = true; if (isAdmin) { loadStats(); } setStatus('ok','🟢 '+new Date().toLocaleTimeString('fr-FR')); saveCache(); document.getElementById('offlineBanner').classList.remove('show'); document.getElementById('modeToggle').style.display='block'; } catch(e) { if (loadCache()) { setStatus('err','🟠 Hors-ligne'); } else { setStatus('err','🔴 '+e.message); } } }
+async function refreshAll() {
+    setStatus('','⏳ Actualisation...');
+    var loaders = [
+        {name:'loadInscrits', fn:loadInscrits},
+        {name:'loadAjournes', fn:loadAjournes},
+        {name:'loadExamens', fn:loadExamens},
+        {name:'loadResultats', fn:loadResultats},
+        {name:'loadMotoInscrits', fn:loadMotoInscrits},
+        {name:'loadMotoAjournes', fn:loadMotoAjournes},
+        {name:'loadMotoExamens', fn:loadMotoExamens},
+        {name:'loadMotoHistorique', fn:loadMotoHistorique}
+    ];
+    var results = await Promise.allSettled(loaders.map(function(l){ return l.fn(); }));
+    var failed = [];
+    results.forEach(function(r, i){
+        if (r.status === 'rejected') {
+            failed.push(loaders[i].name);
+            console.log('refreshAll: échec de ' + loaders[i].name, r.reason);
+        }
+    });
+
+    if (failed.length === loaders.length) {
+        // Tout a échoué : vraie coupure réseau/connexion -> mode hors-ligne
+        if (loadCache()) { setStatus('err','🟠 Hors-ligne'); } else { setStatus('err','🔴 '+(results[0].reason && results[0].reason.message || 'Erreur de connexion')); }
+        return;
+    }
+
+    // Au moins une partie des données a été rafraîchie correctement : on garde
+    // ce qui a été mis à jour (pas de retour en arrière sur le cache) et on
+    // signale juste les éventuels échecs ponctuels.
+    try { await saveStatsSnapshot(dataIns.length, dataAj.length); dataStatsHistory = await loadStatsHistory() || []; } catch(e) { console.log('statsSnapshot err', e); }
+    dataReady = true;
+    if (isAdmin) { loadStats(); }
+    if (failed.length) {
+        setStatus('err','🟠 Partiel ('+failed.length+' échec(s), voir console)');
+    } else {
+        setStatus('ok','🟢 '+new Date().toLocaleTimeString('fr-FR'));
+    }
+    saveCache();
+    document.getElementById('offlineBanner').classList.remove('show');
+    document.getElementById('modeToggle').style.display='block';
+}
 
 // === MODE HORS-LIGNE ===
 function saveCache() {
