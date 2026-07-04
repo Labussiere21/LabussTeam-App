@@ -638,8 +638,8 @@ async function loadExamens() {
     const eIds=[...new Set(allInsc.filter(i=>i.eleve_id>0).map(i=>i.eleve_id))];
     const aIds=[...new Set(allInsc.filter(i=>i.eleve_id<0).map(i=>Math.abs(i.eleve_id)))];
     let eMap={},aMap={};
-    if (eIds.length) { const {data} = await sb.from('eleves').select('id,nom,prenom').in('id',eIds); (data||[]).forEach(e=>eMap[e.id]=e); }
-    if (aIds.length) { const {data} = await sb.from('ajournes').select('id,nom,prenom').in('id',aIds); (data||[]).forEach(a=>aMap[a.id]=a); }
+    if (eIds.length) { const {data} = await sb.from('eleves').select('id,nom,prenom,type,presentation,note').in('id',eIds); (data||[]).forEach(e=>eMap[e.id]=e); }
+    if (aIds.length) { const {data} = await sb.from('ajournes').select('id,nom,prenom,type,presentation,note').in('id',aIds); (data||[]).forEach(a=>aMap[a.id]=a); }
     dataEx = (examens||[]).map(ex => {
         const ins = allInsc.filter(i=>i.examen_id===ex.id);
         const cands = ins.map(i => {
