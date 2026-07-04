@@ -283,7 +283,7 @@
     <div class="header">
         <h1>🚗 Auto-École <span class="readonly-tag" id="modeTag">LECTURE SEULE</span></h1>
         <div class="header-right">
-            <span class="status" id="statusTxt">⚪ Connexion...</span>
+            <span class="status" id="statusTxt" onclick="if(this.dataset.full) alert(this.dataset.full)" style="cursor:pointer">⚪ Connexion...</span>
             <button class="btn" onclick="refreshAll()">🔄 Actualiser</button>
             <button class="btn btn-sm btn-blue" id="adminBtn" onclick="openAdminModal()">🔐 Admin</button>
             <button class="btn btn-sm btn-red" onclick="resetConfig()">⚙️</button>
@@ -407,7 +407,7 @@ function esc(v) { if (!v) return ''; const d = document.createElement('div'); d.
 function moisKey(m) { if (!m || !m.trim()) return 999999; const p = m.trim().split(' '); if (p.length !== 2) return 999999; const i = MOIS.indexOf(p[0]); return (parseInt(p[1])||0) * 100 + (i >= 0 ? i : 99); }
 function parseDateFR(d) { if (!d) return 0; const p = d.split('/'); return p.length === 3 ? new Date(p[2], p[1]-1, p[0]).getTime() : 0; }
 function fillMoisSel(id, list) { const s = document.getElementById(id); const c = s.value; const u = [...new Set(list.filter(m => m && m.trim()))].sort((a,b) => moisKey(a)-moisKey(b)); s.innerHTML = '<option value="">Tous les mois</option>' + u.map(m => '<option value="'+esc(m)+'">'+esc(m)+'</option>').join(''); if (c && u.includes(c)) s.value = c; }
-function setStatus(c, t) { const el = document.getElementById('statusTxt'); el.className = 'status ' + c; el.textContent = t; }
+function setStatus(c, t) { const el = document.getElementById('statusTxt'); el.className = 'status ' + c; el.textContent = t; el.dataset.full = t; }
 
 // INIT
 function init() { const u = localStorage.getItem('sb_url'), k = localStorage.getItem('sb_key'); if (u && k) connect(u, k); else document.getElementById('cfgScreen').style.display = 'block'; }
@@ -443,16 +443,19 @@ async function refreshAll() {
     ];
     var results = await Promise.allSettled(loaders.map(function(l){ return l.fn(); }));
     var failed = [];
+    var failDetails = [];
     results.forEach(function(r, i){
         if (r.status === 'rejected') {
+            var msg = (r.reason && r.reason.message) ? r.reason.message : String(r.reason);
             failed.push(loaders[i].name);
+            failDetails.push(loaders[i].name + ' (' + msg + ')');
             console.log('refreshAll: échec de ' + loaders[i].name, r.reason);
         }
     });
 
     if (failed.length === loaders.length) {
         // Tout a échoué : vraie coupure réseau/connexion -> mode hors-ligne
-        if (loadCache()) { setStatus('err','🟠 Hors-ligne'); } else { setStatus('err','🔴 '+(results[0].reason && results[0].reason.message || 'Erreur de connexion')); }
+        if (loadCache()) { setStatus('err','🟠 Hors-ligne'); } else { setStatus('err','🔴 '+failDetails.join(', ')); }
         return;
     }
 
@@ -463,7 +466,7 @@ async function refreshAll() {
     dataReady = true;
     if (isAdmin) { loadStats(); }
     if (failed.length) {
-        setStatus('err','🟠 Partiel ('+failed.length+' échec(s), voir console)');
+        setStatus('err','🟠 Partiel : ' + failDetails.join(', '));
     } else {
         setStatus('ok','🟢 '+new Date().toLocaleTimeString('fr-FR'));
     }
@@ -2152,6 +2155,7 @@ async function adminDoCreateExam() {
     var places = parseInt(document.getElementById('newExPlaces').value) || 8;
     var typeExamen = isMoto ? (document.getElementById('newExType').value || 'Plateau') : null;
     if (!date) { alert('Veuillez saisir une date.'); return; }
+    if (!/^\d{2}\/\d{2}\/\d{4}$/.test(date)) { alert('Format de date invalide. Utilisez JJ/MM/AAAA avec l\'année sur 4 chiffres (ex : 02/02/2026).'); return; }
     try {
         var table = isMoto ? 'examens_moto' : 'examens';
         var row = { date: date, horaire: horaire || null, lieu: lieu || null, nb_places: places, statut: isMoto ? 'programme' : 'programmé' };
@@ -2203,6 +2207,7 @@ async function adminDoEditExam(exId) {
     var places = parseInt(document.getElementById('editExPlaces').value) || 8;
     var typeExamen = isMoto ? (document.getElementById('editExType').value || 'Plateau') : null;
     if (!date) { alert('Veuillez saisir une date.'); return; }
+    if (!/^\d{2}\/\d{2}\/\d{4}$/.test(date)) { alert('Format de date invalide. Utilisez JJ/MM/AAAA avec l\'année sur 4 chiffres (ex : 02/02/2026).'); return; }
     try {
         var table = isMoto ? 'examens_moto' : 'examens';
         var upd = { date: date, horaire: horaire || null, lieu: lieu || null, nb_places: places };
