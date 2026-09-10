@@ -2328,6 +2328,13 @@ async function adminRemoveCandidat(exId, eleveId) {
     } catch(e) { alert('Erreur : ' + e.message); }
 }
 
+function nextPres(p) {
+    var ordre = ['1ère présentation','2ème présentation','3ème présentation','4ème présentation','5ème présentation','6ème présentation'];
+    var idx = ordre.indexOf((p || '').trim());
+    if (idx === -1) return '2ème présentation';
+    return ordre[Math.min(idx + 1, ordre.length - 1)];
+}
+
 function adminDateToMois(dateStr) {
     try { var p = dateStr.split('/'); return MOIS[parseInt(p[1]) - 1] + ' ' + p[2]; } catch(e) { return dateStr; }
 }
@@ -2393,6 +2400,12 @@ async function adminDoValiderExam(exId, nb) {
 
     if (!confirm('Clôturer cet examen et enregistrer ' + results.length + ' résultat(s) ?')) return;
 
+    var errs = [];
+    function pushErr(res, cand, etape) {
+        if (res && res.error) errs.push(cand.nom + ' ' + cand.prenom + ' — ' + etape + ' : ' + res.error.message);
+        return res;
+    }
+
     try {
         var moisLabel = adminDateToMois(ex.date);
 
@@ -2405,21 +2418,22 @@ async function adminDoValiderExam(exId, nb) {
             await sb.from('examens_moto').update({ statut: 'cloture' }).eq('id', exId);
             for (var i = 0; i < results.length; i++) {
                 var c = results[i].candidat;
-                if (c.id > 0) {
-                    if (results[i].ok) {
-                        await sb.from('eleves_moto').delete().eq('id', c.id);
-                    } else {
-                        await sb.from('ajournes_moto').insert({ nom: c.nom, prenom: c.prenom, type_moto: ex.type_examen || 'Plateau', mois_echec: moisLabel, date_echec: ex.date });
-                        await sb.from('eleves_moto').delete().eq('id', c.id);
+                // c.id est TOUJOURS positif : le signe negatif n'existe que dans inscriptions_examens_moto.
+                // Le seul discriminant fiable est c.src.
+                var isAj = (c.src === 'ajourné');
+                if (!isAj) {
+                    if (!results[i].ok) {
+                        pushErr(await sb.from('ajournes_moto').insert({ nom: c.nom, prenom: c.prenom, type_moto: ex.type_examen || 'Plateau', mois_echec: moisLabel, date_echec: ex.date }), c, 'création ajourné');
                     }
+                    pushErr(await sb.from('eleves_moto').delete().eq('id', c.id), c, 'suppression élève');
                 } else {
-                    var ajId = Math.abs(c.id);
                     if (results[i].ok) {
-                        await sb.from('ajournes_moto').delete().eq('id', ajId);
+                        pushErr(await sb.from('ajournes_moto').delete().eq('id', c.id), c, 'sortie ajourné');
                     } else {
-                        await sb.from('ajournes_moto').update({ mois_echec: moisLabel, date_echec: ex.date }).eq('id', ajId);
+                        pushErr(await sb.from('ajournes_moto').update({ mois_echec: moisLabel, date_echec: ex.date }).eq('id', c.id), c, 'maj ajourné');
                     }
                 }
+                pushErr(await sb.from('inscriptions_examens_moto').delete().eq('examen_id', exId).eq('eleve_id', isAj ? -c.id : c.id), c, 'nettoyage inscription');
             }
         } else {
             var histRows = results.map(function(r) {
@@ -2438,20 +2452,42 @@ async function adminDoValiderExam(exId, nb) {
             await sb.from('examens').update({ statut: 'clôturé' }).eq('id', exId);
             for (var i = 0; i < results.length; i++) {
                 var c = results[i].candidat;
-                if (c.id > 0) {
-                    await sb.from('eleves').delete().eq('id', c.id);
+                // c.id est TOUJOURS positif : le signe negatif n'existe que dans inscriptions_examens.
+                // Le seul discriminant fiable est c.src.
+                var isAj = (c.src === 'ajourné');
+                if (!isAj) {
+                    if (!results[i].ok) {
+                        pushErr(await sb.from('ajournes').insert({
+                            nom: c.nom, prenom: c.prenom,
+                            type: c.type || null,
+                            presentation: nextPres(c.presentation),
+                            mois_echec: moisLabel, date_echec: ex.date,
+                            note: c.note || null,
+                            reinscrit: 0
+                        }), c, 'création ajourné');
+                    }
+                    pushErr(await sb.from('eleves').delete().eq('id', c.id), c, 'suppression élève');
                 } else {
-                    var ajId = Math.abs(c.id);
                     if (results[i].ok) {
-                        await sb.from('ajournes').update({ reinscrit: 1 }).eq('id', ajId);
+                        pushErr(await sb.from('ajournes').update({ reinscrit: 1 }).eq('id', c.id), c, 'sortie ajourné');
+                    } else {
+                        pushErr(await sb.from('ajournes').update({
+                            presentation: nextPres(c.presentation),
+                            mois_echec: moisLabel, date_echec: ex.date
+                        }).eq('id', c.id), c, 'maj ajourné');
                     }
                 }
+                pushErr(await sb.from('inscriptions_examens').delete().eq('examen_id', exId).eq('eleve_id', isAj ? -c.id : c.id), c, 'nettoyage inscription');
             }
         }
 
         adminCloseOverlays();
         document.querySelectorAll('div[style*="position:fixed"]').forEach(function(el) { el.remove(); });
-        alert('✅ Examen clôturé et résultats enregistrés !');
+        if (errs.length) {
+            alert('⚠️ Examen clôturé mais ' + errs.length + ' opération(s) ont échoué :\n\n' + errs.join('\n') + '\n\nÀ corriger manuellement.');
+        } else {
+            alert('✅ Examen clôturé et résultats enregistrés !');
+        }
         await refreshAll();
         renderCalendrier();
     } catch(e) { alert('Erreur lors de la clôture : ' + e.message); }
