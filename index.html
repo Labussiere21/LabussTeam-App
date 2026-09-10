@@ -2449,7 +2449,6 @@ async function adminDoValiderExam(exId, nb) {
             });
             var { error: hErr } = await sb.from('historique').insert(histRows);
             if (hErr) throw hErr;
-            await sb.from('examens').update({ statut: 'clôturé' }).eq('id', exId);
             for (var i = 0; i < results.length; i++) {
                 var c = results[i].candidat;
                 // c.id est TOUJOURS positif : le signe negatif n'existe que dans inscriptions_examens.
@@ -2477,8 +2476,11 @@ async function adminDoValiderExam(exId, nb) {
                         }).eq('id', c.id), c, 'maj ajourné');
                     }
                 }
-                pushErr(await sb.from('inscriptions_examens').delete().eq('examen_id', exId).eq('eleve_id', isAj ? -c.id : c.id), c, 'nettoyage inscription');
             }
+            // L'app de bureau supprime l'examen a la cloture : on fait pareil.
+            // Les inscriptions partent d'abord (contrainte de cle etrangere).
+            pushErr(await sb.from('inscriptions_examens').delete().eq('examen_id', exId), { nom: 'Examen', prenom: ex.date }, 'nettoyage inscriptions');
+            pushErr(await sb.from('examens').delete().eq('id', exId), { nom: 'Examen', prenom: ex.date }, 'suppression examen');
         }
 
         adminCloseOverlays();
