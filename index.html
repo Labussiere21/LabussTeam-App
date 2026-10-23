@@ -2237,6 +2237,14 @@ async function adminDeleteExam(exId) {
         await sb.from(tableIns).delete().eq('examen_id', exId);
         var { error } = await sb.from(tableEx).delete().eq('id', exId);
         if (error) throw error;
+        if (!isMoto && ex && ex.candidats) {
+            // Comme le retrait d'un candidat : la date d'examen est vidée, le mois est conservé
+            for (var i = 0; i < ex.candidats.length; i++) {
+                var c = ex.candidats[i];
+                if (c.src === 'ajourné') await sb.from('ajournes').update({ date: '' }).eq('id', c.id);
+                else await sb.from('eleves').update({ date_exam: '' }).eq('id', c.id);
+            }
+        }
         adminCloseOverlays();
         document.querySelectorAll('div[style*="position:fixed"]').forEach(function(el) { el.remove(); });
         alert('✅ Examen supprimé.');
@@ -2253,10 +2261,11 @@ function adminShowAddCandidat(exId) {
     var source = isMoto ? dataMotoEx : dataEx;
     var ex = source.find(function(e) { return e.id === exId; });
     if (!ex) return;
-    var alreadyIds = (ex.candidats || []).map(function(c) { return c.id; });
+    // Id signés : élève = +id, ajourné = -id (les deux tables ont des numéros qui se chevauchent)
+    var alreadyIds = (ex.candidats || []).map(function(c) { return c.src === 'ajourné' ? -c.id : c.id; });
     _adminAddCandExId = exId;
     _adminAddCandIns = (isMoto ? dataMotoIns : dataIns).filter(function(e) { return alreadyIds.indexOf(e.id) === -1; });
-    _adminAddCandAj  = (isMoto ? dataMotoAj  : dataAj ).filter(function(e) { return alreadyIds.indexOf(e.id) === -1; });
+    _adminAddCandAj  = (isMoto ? dataMotoAj  : dataAj ).filter(function(e) { return alreadyIds.indexOf(-e.id) === -1; });
     adminMakeOverlay(
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">' +
         '<h3 style="margin:0;color:#27ae60">➕ Ajouter un élève</h3>' +
