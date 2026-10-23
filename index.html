@@ -682,8 +682,8 @@ async function loadExamens() {
     const eIds=[...new Set(allInsc.filter(i=>i.eleve_id>0).map(i=>i.eleve_id))];
     const aIds=[...new Set(allInsc.filter(i=>i.eleve_id<0).map(i=>Math.abs(i.eleve_id)))];
     let eMap={},aMap={};
-    if (eIds.length) { const {data} = await sb.from('eleves').select('id,nom,prenom,type,presentation,note').in('id',eIds); (data||[]).forEach(e=>eMap[e.id]=e); }
-    if (aIds.length) { const {data} = await sb.from('ajournes').select('id,nom,prenom,type,presentation,note').in('id',aIds); (data||[]).forEach(a=>aMap[a.id]=a); }
+    if (eIds.length) { const {data} = await sb.from('eleves').select('id,nom,prenom,type,presentation,note,prealable,telephone,annulation').in('id',eIds); (data||[]).forEach(e=>eMap[e.id]=e); }
+    if (aIds.length) { const {data} = await sb.from('ajournes').select('id,nom,prenom,type,presentation,note,prealable,mois_echec,date_echec').in('id',aIds); (data||[]).forEach(a=>aMap[a.id]=a); }
     dataEx = (examens||[]).map(ex => {
         const ins = allInsc.filter(i=>i.examen_id===ex.id);
         const cands = ins.map(i => {
@@ -2302,8 +2302,35 @@ async function adminDoAddCandidat(exId, eleveId) {
     var isMoto = currentMode === 'motos';
     var table = isMoto ? 'inscriptions_examens_moto' : 'inscriptions_examens';
     try {
-        var { error } = await sb.from(table).insert({ examen_id: exId, eleve_id: eleveId });
+        if (!isMoto) {
+            // Mêmes contrôles que l'app Python
+            var ex = dataEx.find(function(e) { return e.id === exId; });
+            var el = eleveId > 0 ? dataIns.find(function(e) { return e.id === eleveId; })
+                                 : dataAj.find(function(e) { return e.id === -eleveId; });
+            if (!ex || !el) { alert('Élève ou examen introuvable, actualisez la page.'); return; }
+            var { data: deja } = await sb.from('inscriptions_examens').select('examen_id').eq('eleve_id', eleveId);
+            if (deja && deja.length) {
+                var autre = dataEx.find(function(e) { return e.id === deja[0].examen_id; });
+                alert('⚠️ ' + el.nom + ' ' + el.prenom + ' est déjà inscrit à l\'examen du ' + (autre ? autre.date : '?') + '.');
+                return;
+            }
+            if ((ex.candidats || []).length >= ex.nb_places) { alert('⚠️ Examen complet (' + ex.candidats.length + '/' + ex.nb_places + ').'); return; }
+            if (el.type === 'Accompagnée') {
+                var pre = parseDateFR(el.prealable), dex = parseDateFR(ex.date);
+                if (!pre) { alert('⚠️ ' + el.nom + ' ' + el.prenom + ' est en conduite accompagnée sans date de préalable.\n\nRenseignez-la d\'abord (app Python).'); return; }
+                var jours = Math.round((dex - pre) / 86400000);
+                if (jours < 365) { alert('⚠️ Délai préalable insuffisant !\n\nPréalable : ' + el.prealable + '\nExamen : ' + ex.date + '\nIl manque ' + (365 - jours) + ' jours.'); return; }
+            }
+        }
+        var { error } = await sb.from(table).insert({ examen_id: exId, eleve_id: eleveId, ordre: isMoto ? undefined : ((ex.candidats || []).length + 1) });
         if (error) throw error;
+        if (!isMoto) {
+            // Date + mois d'examen sur l'élève (comme l'app Python)
+            var moisEx = adminDateToMois(ex.date);
+            if (eleveId > 0) await sb.from('eleves').update({ date_exam: ex.date, mois: moisEx }).eq('id', eleveId);
+            else await sb.from('ajournes').update({ date: ex.date, mois: moisEx }).eq('id', -eleveId);
+            await Promise.allSettled([loadInscrits(), loadAjournes()]);
+        }
         if (isMoto) await loadMotoExamens(); else await loadExamens();
         adminCloseOverlays();
         document.querySelectorAll('div[style*="position:fixed"]').forEach(function(el) { el.remove(); });
@@ -2320,6 +2347,11 @@ async function adminRemoveCandidat(exId, eleveId) {
     try {
         var { error } = await sb.from(table).delete().eq('examen_id', exId).eq('eleve_id', eleveId);
         if (error) throw error;
+        if (!isMoto) {
+            if (eleveId > 0) await sb.from('eleves').update({ date_exam: '' }).eq('id', eleveId);
+            else await sb.from('ajournes').update({ date: '' }).eq('id', -eleveId);
+            await Promise.allSettled([loadInscrits(), loadAjournes()]);
+        }
         if (isMoto) await loadMotoExamens(); else await loadExamens();
         adminCloseOverlays();
         document.querySelectorAll('div[style*="position:fixed"]').forEach(function(el) { el.remove(); });
@@ -2436,15 +2468,24 @@ async function adminDoValiderExam(exId, nb) {
                 pushErr(await sb.from('inscriptions_examens_moto').delete().eq('examen_id', exId).eq('eleve_id', isAj ? -c.id : c.id), c, 'nettoyage inscription');
             }
         } else {
+            // Délai en mois entre l'échec précédent et cet examen (comme l'app Python)
+            function delaiMois(moisEchec) {
+                var a = moisKey(moisEchec), b = moisKey(moisLabel);
+                if (a === 999999 || b === 999999) return null;
+                return (Math.floor(b / 100) - Math.floor(a / 100)) * 12 + (b % 100 - a % 100);
+            }
             var histRows = results.map(function(r) {
                 var c = r.candidat;
+                var isAj = (c.src === 'ajourné');
                 return {
                     nom: c.nom, prenom: c.prenom,
-                    resultat: r.ok ? 'réussi' : 'échoué',
+                    resultat: r.ok ? 'réussi' : 'échec',   // 'échec' : valeur attendue par les stats de l'app Python
                     mois_examen: moisLabel, date_examen: ex.date,
-                    type: c.type || null,
-                    presentation: c.presentation || null,
-                    boite_auto: (c.note||'').toLowerCase().includes('boîte auto') ? 1 : 0
+                    type: c.type || 'Traditionnelle',
+                    presentation: c.presentation || (isAj ? '2ème présentation' : '1ère présentation'),
+                    boite_auto: (c.note||'').toLowerCase().includes('boîte auto') ? 1 : 0,
+                    date_echec: isAj ? (c.date_echec || null) : null,
+                    delai_mois: isAj ? delaiMois(c.mois_echec) : null
                 };
             });
             var { error: hErr } = await sb.from('historique').insert(histRows);
@@ -2455,24 +2496,37 @@ async function adminDoValiderExam(exId, nb) {
                 // Le seul discriminant fiable est c.src.
                 var isAj = (c.src === 'ajourné');
                 if (!isAj) {
+                    var creeOk = true;
                     if (!results[i].ok) {
-                        pushErr(await sb.from('ajournes').insert({
+                        // Pas d'id : Postgres l'attribue (séquence). Champs recopiés comme l'app Python.
+                        var resAj = pushErr(await sb.from('ajournes').insert({
+                            eleve_id: c.id,
                             nom: c.nom, prenom: c.prenom,
                             type: c.type || null,
                             presentation: nextPres(c.presentation),
                             mois_echec: moisLabel, date_echec: ex.date,
+                            niveau: 'Bon', mois: '', date: '', bilan: '',
                             note: c.note || null,
+                            prealable: c.prealable || null,
+                            telephone: c.telephone || null,
+                            annulation: c.annulation || 0,
+                            created_at: new Date().toLocaleDateString('fr-FR'),
                             reinscrit: 0
                         }), c, 'création ajourné');
+                        creeOk = !(resAj && resAj.error);
                     }
-                    pushErr(await sb.from('eleves').delete().eq('id', c.id), c, 'suppression élève');
+                    // On ne supprime l'élève que si l'ajourné a bien été créé (sinon il serait perdu)
+                    if (creeOk) pushErr(await sb.from('eleves').delete().eq('id', c.id), c, 'suppression élève');
+                    else errs.push(c.nom + ' ' + c.prenom + ' — laissé dans la liste d\'attente (à ajourner à la main)');
                 } else {
                     if (results[i].ok) {
-                        pushErr(await sb.from('ajournes').update({ reinscrit: 1 }).eq('id', c.id), c, 'sortie ajourné');
+                        pushErr(await sb.from('ajournes').delete().eq('id', c.id), c, 'sortie ajourné');
                     } else {
+                        // Nouvel échec : présentation +1, nouveau mois d'échec, mois/date d'examen vidés (comme l'app Python)
                         pushErr(await sb.from('ajournes').update({
                             presentation: nextPres(c.presentation),
-                            mois_echec: moisLabel, date_echec: ex.date
+                            mois_echec: moisLabel, date_echec: ex.date,
+                            mois: '', date: ''
                         }).eq('id', c.id), c, 'maj ajourné');
                     }
                 }
